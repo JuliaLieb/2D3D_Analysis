@@ -51,7 +51,7 @@ class EEGAnalysis:
         # load xdf file in raw variable
         self.load_xdf()
 
-    def get_info_from_path(self):
+    '''def get_info_from_path(self): 
         """
         Getting main information from file path regarding subject, folder and output folder according to
         LSLRecorder standard
@@ -69,6 +69,7 @@ class EEGAnalysis:
         project_folder = str(pathlib.Path(__file__).parent.parent.absolute())
 
         '''
+    '''
         # extraction of subject, session and run indexes
         if self.input_info['lsl-version'] == '1.12':
             subject = (file_name.split('subj_')[1]).split('_block')[0]
@@ -77,6 +78,7 @@ class EEGAnalysis:
         else:
             subject = ''
         '''
+    '''
         subject = 'S8'
 
         # output folder according to the standard
@@ -85,6 +87,8 @@ class EEGAnalysis:
 
         self.file_info = {'input_folder': folder, 'file_name': file_name, 'subject': subject,
                           'output_images_folder': output_folder, 'project_folder': project_folder}
+
+        '''
 
     def load_xdf(self):
         """
