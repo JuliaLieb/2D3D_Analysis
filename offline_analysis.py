@@ -15,9 +15,9 @@ import sys
 import matplotlib
 matplotlib.use('Qt5Agg')
 
-def extract_epochs(data):
+def extract_epochs(data, n_samples_task, n_ch):
     data_labels = data[0, :]
-    data = data[1:, :]
+    data = data[1:n_ch+1, :]
     indexes = np.where((data_labels == 121) | (data_labels == 122))[0]
 
     epochs = []
@@ -152,30 +152,43 @@ def analyze_eeg(eeg, config):
     print(info)
 
     eeg_scaled = eeg * 20e-3
-    #raw = mne.io.RawArray(eeg[1:n_ch + 1, :], info)
-
-
-
-    """
-    event_dict = dict(left=0, right=1)
-    # picks = ['C3', 'Cz', 'C4']
-    # picks = ['F3', 'F4', 'C3', 'C4', 'P3', 'P4']
-    # picks = ['F3', 'F4']
-    picks = ['C3', 'C4']
-    picked_channels = [raw.ch_names.index(ch) for ch in picks]
-    #picks = ['P3', 'P4']
-
-    eeg = extract_epochs(eeg)
-    n_ep, n_ch, n_s = np.shape(eeg)
-    events_array = np.column_stack((np.arange(0, n_ep*n_s, n_s), np.zeros(n_ep, dtype=int), np.array(class_labels, dtype=int)))
-    eeg_epochs_array = mne.EpochsArray(eeg, info, tmin=-config['general-settings']['timing']['duration-ref'], events=events_array, event_id=event_dict)
-    eeg_epochs_array.plot(picks=picks, show_scrollbars=False, events=events_array, event_id=event_dict, n_epochs=5)
-    """
+    eeg_scaled[0:] = eeg[0:]
 
     indexes_class_1 = np.where(eeg[0, :] == 121)[0]
     indexes_class_2 = np.where(eeg[0, :] == 122)[0]
     indexes_class_all = np.sort(np.append(indexes_class_1, indexes_class_2), axis=0)
     class_labels = eeg[0, indexes_class_all] - 121
+
+    n_samples_task = int(np.floor(sample_rate * duration_task))
+    n_samples_trial = n_ref + n_samples_task
+
+    # for i in range(len(indexes_class_all)):
+    '''
+    for i in range(3, 4):
+        raw = mne.io.RawArray(
+            eeg_scaled[1:n_ch + 1, indexes_class_all[i] - n_ref:indexes_class_all[i] + n_samples_trial], info)
+        raw.plot(duration=14.25, n_channels=n_ch, show_scrollbars=True, block=True, show_options=True,
+                 title="Trial %i" % i)
+    '''
+    raw = mne.io.RawArray(eeg[1:n_ch + 1, :], info)
+
+    #"""
+    event_dict = dict(left=0, right=1)
+    # picks = ['C3', 'Cz', 'C4']
+    #picks = ['F3', 'F4', 'C3', 'C4', 'P3', 'P4']
+    # picks = ['F3', 'F4']
+    picks = ['C3', 'C4']
+    picked_channels = [raw.ch_names.index(ch) for ch in picks]
+    #picks = ['P3', 'P4']
+
+    eeg = extract_epochs(eeg, n_samples_task, n_ch)
+    n_ep, n_ch, n_s = np.shape(eeg)
+    events_array = np.column_stack((np.arange(0, n_ep*n_s, n_s), np.zeros(n_ep, dtype=int), np.array(class_labels, dtype=int)))
+    eeg_epochs_array = mne.EpochsArray(eeg, info, tmin=-config['general-settings']['timing']['duration-ref'], events=events_array, event_id=event_dict)
+    #eeg_epochs_array.plot(picks=picks, show_scrollbars=True, block=True, events=events_array, event_id=event_dict, n_epochs=5) # Signal ist zu klein um sichtbar zu sein #Todo
+        #"""
+
+
 
     # Versuch, nicht nur cue l+r, sondern auch die anderen Events mit aufzulisten
     '''
@@ -196,10 +209,10 @@ def analyze_eeg(eeg, config):
     class_labels_together = eeg[0, indexes_class_all_together] - 121
     '''
 
+    motor_mode = config['gui-input-settings']['motor-mode']
+    run = config['gui-input-settings']['n-run']
 
-    n_samples_task = int(np.floor(sample_rate * duration_task))
-    n_samples_trial = n_ref + n_samples_task
-    """
+    #"""
     tmin = -duration_ref
     tmax = duration_task
     events = np.column_stack(
@@ -207,7 +220,7 @@ def analyze_eeg(eeg, config):
     #events_together = np.column_stack(
     #    (indexes_class_all_together, np.zeros(len(indexes_class_all_together), dtype=int), np.array(class_labels_together, dtype=int)))
     epochs = mne.Epochs(raw, events, event_dict, tmin - 0.5, tmax + 0.5, picks=picks, baseline=None, preload=True)
-    # epochs.plot(picks=picks, show_scrollbars=True, events=events, event_id=event_dict)
+    epochs.plot(picks=picks, show_scrollbars=True, events=events, event_id=event_dict)
 
     # freqs = np.arange(2, 31)  # frequencies from 2-30Hz
     freqs = np.arange(1, 30)
@@ -221,36 +234,34 @@ def analyze_eeg(eeg, config):
     tfr = tfr_multitaper(epochs, picks=picks, freqs=freqs, n_cycles=freqs, use_fft=True, return_itc=False, average=False, decim=2)
     tfr.crop(tmin, tmax).apply_baseline(baseline,mode="percent")  # subtracting the mean of baseline values followed by dividing by the mean of baseline values (‘percent’)
     tfr.crop(0, tmax)
-    """
+    #"""
 
 
-    #for i in range(len(indexes_class_all)):
-    for i in range(3, 4):
-        raw = mne.io.RawArray(eeg_scaled[1:n_ch+1, indexes_class_all[i]-n_ref:indexes_class_all[i]+n_samples_trial], info)
-        raw.plot(duration=14.25, n_channels=n_ch, show_scrollbars=True, block=True, show_options=True, title="Trial %i" % i)
 
-    '''
+
+    #'''
     for event in event_dict:
         # select desired epochs for visualization
         tfr_ev = tfr[event]
         fig, axes = plt.subplots(1, 3, figsize=(12, 4), gridspec_kw={"width_ratios": [10, 10, 0.5]}) # , 0.5
         axes = axes.flatten()
         for ch, ax in enumerate(axes[:-1]):  # for each channel  axes[:-1]
-            # # positive clusters
-            # _, c1, p1, _ = pcluster_test(tfr_ev.data[:, ch], tail=1, **kwargs)
-            # # negative clusters
-            # _, c2, p2, _ = pcluster_test(tfr_ev.data[:, ch], tail=-1, **kwargs)
-            #
-            # # note that we keep clusters with p <= 0.05 from the combined clusters
-            # # of two independent tests; in this example, we do not correct for
-            # # these two comparisons
-            # c = np.stack(c1 + c2, axis=2)  # combined clusters
-            # p = np.concatenate((p1, p2))  # combined p-values
-            # mask = c[..., p <= 0.5].any(axis=-1)  # 0.05
+            '''
+            # positive clusters
+            _, c1, p1, _ = pcluster_test(tfr_ev.data[:, ch], tail=1, **kwargs)
+            # negative clusters
+            _, c2, p2, _ = pcluster_test(tfr_ev.data[:, ch], tail=-1, **kwargs)
 
+            # note that we keep clusters with p <= 0.05 from the combined clusters
+            # of two independent tests; in this example, we do not correct for
+            # these two comparisons
+            c = np.stack(c1 + c2, axis=2)  # combined clusters
+            p = np.concatenate((p1, p2))  # combined p-values
+            mask = c[..., p <= 0.5].any(axis=-1)  # 0.05
+            '''
             # plot TFR (ERDS map with masking)
             tfr_ev.average().plot([ch], cmap="RdBu", cnorm=cnorm, axes=ax,
-                                  colorbar=False, show=False, vmin=-1.5, vmax=1.5)  #, mask=mask,
+                                  colorbar=False, show=False, vlim=(-1.5, 1.5))  #, mask=mask,
                                   # mask_style="mask")
 
             ax.set_title(epochs.ch_names[ch], fontsize=10)
@@ -262,9 +273,9 @@ def analyze_eeg(eeg, config):
         fig.colorbar(axes[0].images[-1], cax=axes[-1])
         fig.suptitle(f"ERDS - {event} hand {motor_mode} run {run}")
 
-        plt.savefig('{}/erds_{}_{}_{}_{}{}.png'.format(dir_plots, motor_mode, str(run), event, picks[0], picks[1]), format='png')
+        #plt.savefig('{}/erds_{}_{}_{}_{}{}.png'.format(dir_plots, motor_mode, str(run), event, picks[0], picks[1]), format='png')
         plt.show()
-    '''
+    #'''
     return eeg
 
 
