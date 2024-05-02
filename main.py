@@ -5,7 +5,7 @@ import navigate_data
 import EEG_analysis
 import ERDS_analysis
 import analysis
-import offline_analysis
+from offline_analysis import EEG_Signal
 
 if __name__ == "__main__":
     cwd = os.getcwd()
@@ -47,7 +47,11 @@ if __name__ == "__main__":
     #else:
         #stream_eeg, stream_marker, stream_erds, stream_lda = analysis.load_xdf(current_config, current_run_xdf)
     #'''
-    offline_analysis.offline_analysis(current_config_path, subject_data_path)
+    eeg = EEG_Signal(current_config_path, subject_data_path)
+    # all_config_files = glob.glob(subject_directory + '*.json')
+    # for current_config_file in all_config_files:
+
+    eeg.analyze_eeg()
 
 
     print("Works!")
