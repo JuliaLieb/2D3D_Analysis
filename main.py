@@ -12,22 +12,25 @@ if __name__ == "__main__":
     data_path = cwd + '/Data/'
 
     # ----- Define Subject and Session ----
-    #subject_list = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10', 'S11', 'S12', 'S13', 'S14', 'S15',
-    #              'S16', 'S17', 'S20']
-    subject_list = ['S20']
+    subject_list = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10', 'S11', 'S12', 'S13', 'S14', 'S15',
+                  'S16', 'S17', 'S20']
+    subject_list = ['S14']
     session_list = [0, 1, 2]
     run_list = [1, 2, 3, 4, 5]
 
     #subject_id = subject_list[17]
-    subject_id = subject_list[0]
-    session_id = session_list[1]
+    subject_id = subject_list[0] # =subject ID -1
+    session_id = session_list[2]
     run_id = run_list[1]
+
+    mat_transformation = False
     # -------------------------------------
 
     subject_data_path = data_path + subject_id + '-ses' + str(session_id) + '/'
 
-    #Save .xdf files to .mat files
-    #navigate_data.save_xdf_to_mat(data_path, subject_list, session_list)
+    #Save all .xdf files to .mat files
+    if mat_transformation:
+        navigate_data.save_xdf_to_mat(data_path, subject_list, session_list)
 
     #'''
     #Get all .mat and .xdf file names
@@ -47,12 +50,15 @@ if __name__ == "__main__":
     #else:
         #stream_eeg, stream_marker, stream_erds, stream_lda = analysis.load_xdf(current_config, current_run_xdf)
     #'''
+
     eeg = EEG_Signal(current_config_path, subject_data_path)
+
     # all_config_files = glob.glob(subject_directory + '*.json')
     # for current_config_file in all_config_files:
 
-    eeg.analyze_eeg()
-
-
-    print("Works!")
-
+    #eeg.plot_raw_eeg(scaled=True, max_trial=2)
+    #eeg.plot_erds_maps(picks=['C3', 'C4'], show_erds=True, show_epochs=False, clustering=False)
+    #eeg.show_lda_plots()
+    eeg.show_erds_mean()
+    #mean_acc = eeg.compute_accuracy()
+    #print(subject_id + ' session ' + str(session_id) + ' run ' + str(run_id) + ': acc = ' + str(mean_acc))
