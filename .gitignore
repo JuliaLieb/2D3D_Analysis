@@ -1,3 +1,4 @@
 # ignore measured data
 Data/*
 Results/*
+2d3dSubjectData/*

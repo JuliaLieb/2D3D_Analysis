@@ -44,13 +44,15 @@ class EEG_Signal:
 
         # EEG / ERDS / LDA files
         self.eeg_name = self.dir_files + '/eeg_run' + str(self.n_run) + '_' + self.motor_mode + '.mat'
-        self.erds_name = self.dir_files + '/erds_run' + str(self.n_run) + '_' + self.motor_mode + '.mat'
-        self.lda_name = self.dir_files + '/lda_run' + str(self.n_run) + '_' + self.motor_mode + '.mat'
-
         self.data_eeg = scipy.io.loadmat(self.eeg_name)['eeg'].T
-        self.data_erds = scipy.io.loadmat(self.erds_name)['erds'].T
-        self.data_lda = scipy.io.loadmat(self.lda_name)['lda'].T
         self.eeg_scaled = self.data_eeg * 20e-3
+
+        if self.n_run > 1:
+            self.erds_name = self.dir_files + '/erds_run' + str(self.n_run) + '_' + self.motor_mode + '.mat'
+            self.lda_name = self.dir_files + '/lda_run' + str(self.n_run) + '_' + self.motor_mode + '.mat'
+            self.data_erds = scipy.io.loadmat(self.erds_name)['erds'].T
+            self.data_lda = scipy.io.loadmat(self.lda_name)['lda'].T
+
 
         self.n_ref = int(np.floor(self.sample_rate * self.duration_ref))
         self.n_samples_task = int(np.floor(self.sample_rate * self.duration_task))
@@ -111,119 +113,6 @@ class EEG_Signal:
 
         return epochs, np.array(data_labels[indexes] - 121, dtype=int)
 
-
-    def show_lda_plots(self):
-        time = [0, self.duration_cue + self.duration_task]
-        step = (self.duration_cue + self.duration_task) / self.n_samples_task
-        time_series = np.arange(start=time[0], stop=time[1], step=step)
-
-        data_lda, labels = EEG_Signal.extract_epochs(self, self.data_lda, self.n_samples_task)
-        class_label = np.zeros_like(time_series)
-        trial_acc = EEG_Signal.compute_accuracy(self, list=True)
-        i = 0
-        #for epoch, cl in zip(data_lda, labels):
-        for epoch in data_lda:
-            accuracy = trial_acc[i]
-            i += 1
-            class_label[:] = epoch[0, 0] #- 120
-            plt.clf()
-            samples = np.shape(epoch[1, :])[0]
-            plt.plot(time_series[0:samples], class_label[0:samples], 'k') # true label
-            plt.plot(time_series[0:samples], epoch[1, 0:samples], 'b') #distance
-            plt.plot(time_series[0:samples], epoch[0, 0:samples], 'r') # classified label
-            plt.legend(['true label', 'distance', 'classified label'])
-            plt.title(f'Trial {i} with mean accuracy = {accuracy}')
-            #plt.savefig('{}/LDA_{}_{}_run{}_task{}_acc={:.2f}.png'.format(self.dir_plots, self.motor_mode,
-            #                                                      self.dimension, str(self.n_run), str(i), trial_acc), format='png')
-            plt.show()
-
-        acc = EEG_Signal.compute_accuracy(self)
-        print("Mean accuracy = {:.2f}".format(acc))
-
-    def show_erds_mean(self):
-        time = [0, self.duration_cue + self.duration_task]
-        step = (self.duration_cue + self.duration_task) / self.n_samples_task
-
-        data_erds, labels = EEG_Signal.extract_epochs(self, self.data_erds, self.n_samples_task)
-
-        #find max. sized epoch
-        max_length = 0
-        max_index = 0
-        for i, arr in enumerate(data_erds):
-            if arr.shape[1] > max_length:
-                max_length = arr.shape[1]
-                max_index = i
-
-        nr_roi, samples = np.shape(data_erds[max_index])
-        data_nd = np.zeros((len(data_erds), nr_roi, samples))
-        data_nd[:] = None
-
-        # list to np array
-        cnt = 0
-        for epoch in data_erds:
-            data_nd[cnt, :, 0:np.shape(epoch)[1]] = epoch
-            cnt += 1
-
-        #idx_1 = np.where(self.class_labels == 0)[0]
-        #idx_2 = np.where(self.class_labels == 1)[0]
-        idx_1 = np.where(labels == 0)[0]
-        idx_2 = np.where(labels == 1)[0]
-
-        # remove short trials (nan values)
-        '''
-        for val in np.unique(np.where(np.isnan(data_nd))[0]):
-            idx_1 = np.delete(idx_1, np.argwhere(idx_1 == val))
-            idx_2 = np.delete(idx_2, np.argwhere(idx_2 == val))
-        '''
-
-        # average erds values for all trials
-        erds_mean_cl1 = np.mean(data_nd[idx_1], axis=0)
-        erds_mean_cl2 = np.mean(data_nd[idx_2], axis=0)
-        time_series = np.arange(start=time[0], stop=time[1], step=step)
-        time_series = time_series[:len(erds_mean_cl1[1])]
-
-        # new_samples = int(samples/3)
-        # erds_mean_cl1 = signal.resample(erds_mean_cl1, new_samples, axis=1)
-        # erds_mean_cl2 = signal.resample(erds_mean_cl2, new_samples, axis=1)
-        # time_series = np.arange(start=time[0], stop=time[1], step=(config['general-settings']['timing']['duration-cue']+config['general-settings']['timing']['duration-task'])/new_samples)
-
-        fig, axs = plt.subplots(3, 2)
-        axs[0, 0].plot(time_series, erds_mean_cl1[0, :])
-        axs[0, 0].set_title('ROI 1')
-        axs[0, 1].plot(time_series, erds_mean_cl1[1, :])
-        axs[0, 1].set_title('ROI 2')
-        axs[1, 0].plot(time_series, erds_mean_cl1[2, :])
-        axs[1, 0].set_title('ROI 3')
-        axs[1, 1].plot(time_series, erds_mean_cl1[3, :])
-        axs[1, 1].set_title('ROI 4')
-        axs[2, 0].plot(time_series, erds_mean_cl1[4, :])
-        axs[2, 0].set_title('ROI 5')
-        axs[2, 1].plot(time_series, erds_mean_cl1[5, :])
-        axs[2, 1].set_title('ROI 6')
-        fig.suptitle('Mean ERDS left hand')
-        plt.savefig('{}/meanERDS_left_{}_{}_run{}.png'.format(self.dir_plots, self.motor_mode,
-                                                           self.dimension, str(self.n_run)), format='png')
-        #plt.show()
-
-        fig2, axs2 = plt.subplots(3, 2)
-        axs2[0, 0].plot(time_series, erds_mean_cl2[0, :])
-        axs2[0, 0].set_title('ROI 1')
-        axs2[0, 1].plot(time_series, erds_mean_cl2[1, :])
-        axs2[0, 1].set_title('ROI 2')
-        axs2[1, 0].plot(time_series, erds_mean_cl2[2, :])
-        axs2[1, 0].set_title('ROI 3')
-        axs2[1, 1].plot(time_series, erds_mean_cl2[3, :])
-        axs2[1, 1].set_title('ROI 4')
-        axs2[2, 0].plot(time_series, erds_mean_cl2[4, :])
-        axs2[2, 0].set_title('ROI 5')
-        axs2[2, 1].plot(time_series, erds_mean_cl2[5, :])
-        axs2[2, 1].set_title('ROI 6')
-        fig2.suptitle('Mean ERDS right hand')
-        plt.savefig('{}/meanERDS_right_{}_{}_run{}.png'.format(self.dir_plots, self.motor_mode,
-                                                              self.dimension, str(self.n_run)), format='png')
-        #plt.show()
-
-
     def compute_accuracy(self, list=False):
         '''samples_accurate = 0
         samples_total = 0
@@ -253,11 +142,33 @@ class EEG_Signal:
             else:
                 return np.mean(acc_per_trial)*100
 
+    def clustering(self, tfr_ev, ch, kwargs):
+        # positive clusters
+        _, c1, p1, _ = pcluster_test(tfr_ev.data[:, ch], tail=1, **kwargs)
+        # negative clusters
+        _, c2, p2, _ = pcluster_test(tfr_ev.data[:, ch], tail=-1, **kwargs)
 
-    #def plot_eeg(eeg, n_ch, info):
-    #    for i in range(len(indexes_class_all)):
-    #        raw = mne.io.RawArray(eeg[1:n_ch+1, indexes_class_all[i]-n_ref:indexes_class_all[i]+n_samples_trial], info)
-    #        raw.plot()
+        # note that we keep clusters with p <= 0.05 from the combined clusters
+        # of two independent tests; in this example, we do not correct for
+        # these two comparisons
+        c = np.stack(c1 + c2, axis=2)  # combined clusters
+        p = np.concatenate((p1, p2))  # combined p-values
+        mask = c[..., p <= 0.5].any(axis=-1)  # 0.0
+
+        return c, p, mask
+
+    def ica_preprocessing(self, raw_signal):
+        #ica = mne.preprocessing.ICA(n_components=20, random_state=97, max_iter=800)
+        #raw_epoch.plot()
+        #plt.savefig('{}/raw_epoch.png'.format(self.dir_plots), format='png')
+        ica = mne.preprocessing.ICA(n_components=0.99999, method='fastica', random_state=97)
+        ica.fit(raw_signal, picks='all')
+        ica.plot_sources(raw_signal, block=True)
+        ica.plot_components()
+        #ica.exclude = [1, 2]
+        #raw_epoch.plot()
+       #plt.savefig('{}/raw_epoch_ica.png'.format(self.dir_plots), format='png')
+        #ica.plot_properties(raw_epoch, picks=ica.exclude)
 
     def plot_raw_eeg(self, scaled=False, max_trial=0):
         if max_trial == 0:
@@ -275,20 +186,33 @@ class EEG_Signal:
             plt.savefig('{}/raw_{}_{}_run{}_task{}.png'.format(self.dir_plots, self.motor_mode,
                                                                self.dimension, str(self.n_run), (trial+1)), format='png')
 
-    def clustering(self, tfr_ev, ch, kwargs):
-        # positive clusters
-        _, c1, p1, _ = pcluster_test(tfr_ev.data[:, ch], tail=1, **kwargs)
-        # negative clusters
-        _, c2, p2, _ = pcluster_test(tfr_ev.data[:, ch], tail=-1, **kwargs)
+    def show_lda_plots(self):
+        time = [0, self.duration_cue + self.duration_task]
+        step = (self.duration_cue + self.duration_task) / self.n_samples_task
+        time_series = np.arange(start=time[0], stop=time[1], step=step)
 
-        # note that we keep clusters with p <= 0.05 from the combined clusters
-        # of two independent tests; in this example, we do not correct for
-        # these two comparisons
-        c = np.stack(c1 + c2, axis=2)  # combined clusters
-        p = np.concatenate((p1, p2))  # combined p-values
-        mask = c[..., p <= 0.5].any(axis=-1)  # 0.0
+        data_lda, labels = EEG_Signal.extract_epochs(self, self.data_lda, self.n_samples_task)
+        class_label = np.zeros_like(time_series)
+        trial_acc = EEG_Signal.compute_accuracy(self, list=True)
+        i = 0
+        #for epoch, cl in zip(data_lda, labels):
+        for epoch in data_lda:
+            accuracy = trial_acc[i]
+            i += 1
+            class_label[:] = epoch[0, 0] #- 120
+            plt.clf()
+            samples = np.shape(epoch[1, :])[0]
+            plt.plot(time_series[0:samples], class_label[0:samples], 'k') # true label
+            plt.plot(time_series[0:samples], epoch[1, 0:samples], 'b') #distance
+            plt.plot(time_series[0:samples], epoch[0, 0:samples], 'r') # classified label
+            plt.legend(['true label', 'distance', 'classified label'])
+            plt.title(f'Trial {i} with mean accuracy = {accuracy}')
+            #plt.savefig('{}/LDA_{}_{}_run{}_task{}_acc={:.2f}.png'.format(self.dir_plots, self.motor_mode,
+            #                                                      self.dimension, str(self.n_run), str(i), trial_acc), format='png')
+            plt.show()
 
-        return c, p, mask
+        acc = EEG_Signal.compute_accuracy(self)
+        print("Mean accuracy = {:.2f}".format(acc))
 
     def plot_erds_maps(self, picks, show_epochs, show_erds, clustering=False):
         tmin = -self.duration_ref
@@ -352,5 +276,98 @@ class EEG_Signal:
             if show_erds == True:
                 plt.show()
 
+    def show_erds_mean(self):
+        time = [0, self.duration_cue + self.duration_task]
+        step = (self.duration_cue + self.duration_task) / self.n_samples_task
 
+        data_erds, labels = EEG_Signal.extract_epochs(self, self.data_erds, self.n_samples_task)
+
+        # find max. sized epoch
+        max_length = 0
+        max_index = 0
+        for i, arr in enumerate(data_erds):
+            if arr.shape[1] > max_length:
+                max_length = arr.shape[1]
+                max_index = i
+
+        nr_roi, samples = np.shape(data_erds[max_index])
+        data_nd = np.zeros((len(data_erds), nr_roi, samples))
+        data_nd[:] = None
+
+        # list to np array
+        cnt = 0
+        for epoch in data_erds:
+            data_nd[cnt, :, 0:np.shape(epoch)[1]] = epoch
+            cnt += 1
+
+        # idx_1 = np.where(self.class_labels == 0)[0]
+        # idx_2 = np.where(self.class_labels == 1)[0]
+        idx_1 = np.where(labels == 0)[0]
+        idx_2 = np.where(labels == 1)[0]
+
+        # remove short trials (nan values)
+        '''
+        for val in np.unique(np.where(np.isnan(data_nd))[0]):
+            idx_1 = np.delete(idx_1, np.argwhere(idx_1 == val))
+            idx_2 = np.delete(idx_2, np.argwhere(idx_2 == val))
+        '''
+
+        # average erds values for all trials
+        erds_mean_cl1 = np.mean(data_nd[idx_1], axis=0)
+        erds_mean_cl2 = np.mean(data_nd[idx_2], axis=0)
+        time_series = np.arange(start=time[0], stop=time[1], step=step)
+        time_series = time_series[:len(erds_mean_cl1[1])]
+
+        # new_samples = int(samples/3)
+        # erds_mean_cl1 = signal.resample(erds_mean_cl1, new_samples, axis=1)
+        # erds_mean_cl2 = signal.resample(erds_mean_cl2, new_samples, axis=1)
+        # time_series = np.arange(start=time[0], stop=time[1], step=(config['general-settings']['timing']['duration-cue']+config['general-settings']['timing']['duration-task'])/new_samples)
+
+        fig, axs = plt.subplots(3, 2)
+        axs[0, 0].plot(time_series, erds_mean_cl1[0, :])
+        axs[0, 0].set_title('ROI 1')
+        axs[0, 1].plot(time_series, erds_mean_cl1[1, :])
+        axs[0, 1].set_title('ROI 2')
+        axs[1, 0].plot(time_series, erds_mean_cl1[2, :])
+        axs[1, 0].set_title('ROI 3')
+        axs[1, 1].plot(time_series, erds_mean_cl1[3, :])
+        axs[1, 1].set_title('ROI 4')
+        axs[2, 0].plot(time_series, erds_mean_cl1[4, :])
+        axs[2, 0].set_title('ROI 5')
+        axs[2, 1].plot(time_series, erds_mean_cl1[5, :])
+        axs[2, 1].set_title('ROI 6')
+        fig.suptitle('Mean ERDS left hand')
+        plt.savefig('{}/meanERDS_left_{}_{}_run{}.png'.format(self.dir_plots, self.motor_mode,
+                                                              self.dimension, str(self.n_run)), format='png')
+        # plt.show()
+
+        fig2, axs2 = plt.subplots(3, 2)
+        axs2[0, 0].plot(time_series, erds_mean_cl2[0, :])
+        axs2[0, 0].set_title('ROI 1')
+        axs2[0, 1].plot(time_series, erds_mean_cl2[1, :])
+        axs2[0, 1].set_title('ROI 2')
+        axs2[1, 0].plot(time_series, erds_mean_cl2[2, :])
+        axs2[1, 0].set_title('ROI 3')
+        axs2[1, 1].plot(time_series, erds_mean_cl2[3, :])
+        axs2[1, 1].set_title('ROI 4')
+        axs2[2, 0].plot(time_series, erds_mean_cl2[4, :])
+        axs2[2, 0].set_title('ROI 5')
+        axs2[2, 1].plot(time_series, erds_mean_cl2[5, :])
+        axs2[2, 1].set_title('ROI 6')
+        fig2.suptitle('Mean ERDS right hand')
+        plt.savefig('{}/meanERDS_right_{}_{}_run{}.png'.format(self.dir_plots, self.motor_mode,
+                                                               self.dimension, str(self.n_run)), format='png')
+        # plt.show()
+
+
+    def preprocessing(self):
+        self.epochs = EEG_Signal.extract_epochs(self, self.data_eeg, self.n_samples_task)
+        montage = mne.channels.make_standard_montage('standard_1005')
+        info = mne.create_info(ch_names=self.ch_names, sfreq=self.sample_rate, ch_types='eeg')
+        info.set_montage(montage)
+        raw_epoch = mne.io.RawArray(self.epochs[0][0][1:self.n_ch + 1, :], info)
+        #raw_epoch._data *= 20e-3
+        #raw_epoch.plot(duration=5, n_channels=32, show_scrollbars=True, block=True, show_options=True,
+        #         title="Raw EEG", show_scalebars=True)#, scalings='20e-3')
+        EEG_Signal.ica_preprocessing(self, raw_epoch)
 
