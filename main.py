@@ -6,6 +6,7 @@ import EEG_analysis
 import ERDS_analysis
 import analysis
 from offline_analysis import EEG_Signal
+from mne.datasets import eegbci
 
 if __name__ == "__main__":
     cwd = os.getcwd()
@@ -58,4 +59,10 @@ if __name__ == "__main__":
     #mean_acc = eeg.compute_accuracy() # funktioniert
     #print(subject_id + ' session ' + str(session_id) + ' run ' + str(run_id) + ': acc = ' + str(mean_acc))
 
-    eeg.preprocessing() # etwas wird geplottet (ica mäßig)
+    #eeg.preprocessing() # etwas wird geplottet (ica mäßig)
+
+    #eeg.xdf_to_fif(subject_data_path)
+    eeg.raw_epochs()
+
+
+

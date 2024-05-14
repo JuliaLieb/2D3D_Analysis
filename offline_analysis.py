@@ -14,6 +14,7 @@ import glob
 import sys
 import matplotlib
 matplotlib.use('Qt5Agg')
+from mne.datasets import eegbci
 
 class EEG_Signal:
 
@@ -77,7 +78,7 @@ class EEG_Signal:
             if config['eeg-settings']['channels'][name]['enabled'] is False:
                 self.bads.append(name)
         self.n_ch = len(self.ch_names)
-        self.info = mne.create_info(ch_names=self.ch_names, sfreq=self.sample_rate, ch_types=['misc'] * self.n_ch)
+        self.info = mne.create_info(ch_names=self.ch_names, sfreq=self.sample_rate, ch_types=['eeg'] * self.n_ch)
         # info['bads'] = bads
         # print(info)
 
@@ -362,7 +363,7 @@ class EEG_Signal:
 
     def preprocessing(self):
         self.epochs = EEG_Signal.extract_epochs(self, self.data_eeg, self.n_samples_task)
-        montage = mne.channels.make_standard_montage('standard_1005')
+        montage = mne.channels.make_standard_montage('standard_1020')
         info = mne.create_info(ch_names=self.ch_names, sfreq=self.sample_rate, ch_types='eeg')
         info.set_montage(montage)
         raw_epoch = mne.io.RawArray(self.epochs[0][0][1:self.n_ch + 1, :], info)
@@ -370,4 +371,21 @@ class EEG_Signal:
         #raw_epoch.plot(duration=5, n_channels=32, show_scrollbars=True, block=True, show_options=True,
         #         title="Raw EEG", show_scalebars=True)#, scalings='20e-3')
         EEG_Signal.ica_preprocessing(self, raw_epoch)
+
+    def raw_epochs(self):
+        raw = mne.io.RawArray(self.data_eeg[1:self.n_ch + 1, :], self.info)
+        fig = raw.plot(n_channels=self.n_ch, show_scrollbars=True, block=True, show_options=True, events=self.events)
+        fig.fake_keypress("a")  # Simulates user pressing 'a' on the keyboard.
+
+        print("show")
+
+    def xdf_to_fif(self, subject_directory):
+        raw = mne.io.RawArray(self.data_eeg[1:self.n_ch + 1, :], self.info)
+        fif_file = self.dir_files + 'eeg_raw.fif'
+        raw.save(fif_file, overwrite=True)
+        events = self.events
+        mne.write_events((self.dir_files + 'events.fif'), events)
+
+
+
 
