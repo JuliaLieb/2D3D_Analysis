@@ -6,6 +6,8 @@ import EEG_analysis
 import ERDS_analysis
 import analysis
 from offline_analysis import EEG_Signal
+from signal_reading import Input_Data
+import segmentation
 from mne.datasets import eegbci
 
 if __name__ == "__main__":
@@ -24,14 +26,27 @@ if __name__ == "__main__":
     session_id = session_list[1]
     run_id = run_list[2]
 
-    mat_transformation = False
     # -------------------------------------
 
     subject_data_path = data_path + subject_id + '-ses' + str(session_id) + '/'
+    for file in os.listdir(subject_data_path):
+        if file.startswith('CONFIG_' + subject_id + '_run' + str(run_id)):
+            if file.endswith('.json'):
+                config_file = subject_data_path + file
+            else:
+                print("No config file found.")
+                break
 
+    input_data = Input_Data(config_file, subject_data_path)
+    input_data.run_raw()
+
+
+    '''
     #Save all .xdf files to .mat files
+    mat_transformation = False
     if mat_transformation:
         navigate_data.save_xdf_to_mat(data_path, subject_list, session_list)
+    '''
 
     #'''
     #Get all .mat and .xdf file names - not necessary if already done.
@@ -39,6 +54,7 @@ if __name__ == "__main__":
     #print(all_mat_files, all_xdf_files)
 
     #Get specific run
+    '''
     current_run_mat, current_run_xdf, current_config = navigate_data.get_specific_run(data_path, subject_id, session_id, run_id)
     current_run_mat_path = subject_data_path + 'dataset/' + current_run_mat
     current_run_xdf_path = subject_data_path + current_run_xdf
@@ -47,6 +63,7 @@ if __name__ == "__main__":
 
 
     eeg = EEG_Signal(current_config_path, subject_data_path)
+    '''
 
     # zum durch-iterieren geplant - TBA
     # all_config_files = glob.glob(subject_directory + '*.json')
@@ -62,7 +79,7 @@ if __name__ == "__main__":
     #eeg.preprocessing() # etwas wird geplottet (ica mäßig)
 
     #eeg.xdf_to_fif(subject_data_path)
-    eeg.raw_epochs()
+    #eeg.raw_epochs()
 
 
 
