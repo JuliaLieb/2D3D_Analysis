@@ -9,6 +9,8 @@ from offline_analysis import EEG_Signal
 from signal_reading import Input_Data
 import segmentation
 from mne.datasets import eegbci
+import calc_values
+import mne
 
 if __name__ == "__main__":
     cwd = os.getcwd()
@@ -38,7 +40,13 @@ if __name__ == "__main__":
                 break
 
     input_data = Input_Data(config_file, subject_data_path)
-    input_data.run_raw()
+    epochs_l, epochs_r = input_data.run_raw()
+    #epochs_l = mne.read_epochs('C:/2D3D_Analysis/Data/S20-ses1/datasetepochs_l_run3.fif', preload=True)
+    #epochs_r = mne.read_epochs('C:/2D3D_Analysis/Data/S20-ses1/datasetepochs_r_run3.fif', preload=True)
+    erds_l = calc_values.run(epochs_l)
+    erds_r = calc_values.run(epochs_r)
+    print(erds_l, erds_r)
+
 
 
     '''

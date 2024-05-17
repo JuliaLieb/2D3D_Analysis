@@ -2,6 +2,8 @@
 # Read data of config and xdf signal
 # ----------------------------------------------------------------------------------------------------------------------
 import json
+from pathlib import Path
+
 import numpy as np
 import pyxdf
 import matplotlib.pyplot as plt
@@ -87,7 +89,7 @@ class Input_Data:
         self.xdf_file = subject_directory + self.subject_id + '_run' + str(self.n_run) + '_' + self.motor_mode + '_' + self.dimension + '.xdf'
         self.load_xdf()
 
-        # epochs & annotations & events
+        # epochs & annotations & events & frequency bands
         self.bad_epochs = ['Reference', 'Cue', 'Feedback', 'Session_Start', 'Session_End', 'End_of_Trial' ]
         self.epochs_reject_criteria = {"eeg": 0.0005}  # original 0.0002
         self.annotations = None
@@ -95,6 +97,8 @@ class Input_Data:
         self.events_r, self.events_l, self.epochs_r, self.epochs_l = None, None, None, None
         self.tmin = 0
         self.tmax = 11.25
+        self.evoked = {}
+        self.alpha_band, self.beta_band = None, None
 
     def load_xdf(self):
         """Loads a xdf file and extracts the eeg and marker stream, also erds and lda data
@@ -266,8 +270,7 @@ class Input_Data:
             self.raw.compute_psd().plot_topo()
         plt.show()
 
-    def raw_ica_remove_eog(self):
-
+    def raw_ica(self):
         n_components = len(self.ch_names)
 
         eeg_raw = self.raw.copy()
@@ -327,7 +330,7 @@ class Input_Data:
         # define MNE annotations
         self.annotations = mne.Annotations(triggers['onsets'], triggers['duration'], triggers['description'])
 
-    def create_epochs(self, visualize_epochs=True, rois=True, set_annotations=True):
+    def create_epochs(self, signal='raw', visualize_epochs=True, rois=True, set_annotations=True):
         """
         Function to extract events from the marker data, generate the correspondent epochs and determine annotation in
         the raw data according to the events
@@ -335,17 +338,25 @@ class Input_Data:
         :param rois: boolean variable to select if visualize results according to the rois or for each channel
         :param set_annotations: boolean variable, if it's necessary to set the annotations or not
         """
+        if signal == 'raw':
+            signal = self.raw
+        elif signal == 'alpha':
+            signal = self.alpha_band
+        elif signal == 'beta':
+            signal = self.beta_band
+        else:
+            print('Select correct signal type raw, alpha or beta.')
 
         # set the annotations on the current raw and extract the correspondent events
         if set_annotations:
-            self.raw.set_annotations(self.annotations)
-        self.events, self.event_mapping = mne.events_from_annotations(self.raw)
+            signal.set_annotations(self.annotations)
+        self.events, self.event_mapping = mne.events_from_annotations(signal)
 
         # Automatic rejection criteria for the epochs
         reject_criteria = self.epochs_reject_criteria
 
         # generation of the epochs according to the events
-        self.epochs = mne.Epochs(self.raw, self.events, preload=True, baseline=(self.tmin, 0),
+        self.epochs = mne.Epochs(signal, self.events, preload=True, baseline=(self.tmin, 0),
                                  reject=reject_criteria, tmin=self.tmin, tmax=self.tmax) # event_id=self.event_mapping,
 
         # separate left and right
@@ -353,15 +364,26 @@ class Input_Data:
         index_l = np.where(self.events[:, 2] == 1)
         self.events_r = self.events[index_r]
         self.events_l = self.events[index_l]
-        self.epochs_r = mne.Epochs(self.raw, self.events_r, preload=True, baseline=(self.tmin, 0),
+        self.epochs_r = mne.Epochs(signal, self.events_r, preload=True, baseline=(self.tmin, 0),
                                  reject=reject_criteria, tmin=self.tmin, tmax=self.tmax)
-        self.epochs_l = mne.Epochs(self.raw, self.events_l, preload=True, baseline=(self.tmin, 0),
+        self.epochs_l = mne.Epochs(signal, self.events_l, preload=True, baseline=(self.tmin, 0),
                                  reject=reject_criteria, tmin=self.tmin, tmax=self.tmax)
 
 
         if visualize_epochs:
-            #self.visualize_all_epochs(signal=False, rois=False)
-            self.visualize_l_r_epochs(signal=False, rois=False)
+            self.visualize_all_epochs(signal=False, rois=False)
+            #self.visualize_l_r_epochs(signal=False, rois=False)
+
+        self.epochs.save(self.dir_files + '/epochs_run' + str(self.n_run) + '-epo.fif', overwrite=True)
+        self.epochs_l.save(self.dir_files + '/epochs_l_run' + str(self.n_run) + '-epo.fif', overwrite=True)
+        self.epochs_r.save(self.dir_files + '/epochs_r_run' + str(self.n_run) + '-epo.fif', overwrite=True)
+
+        return self.epochs_l, self.epochs_r
+
+    def get_frequency_band(self, freqency_band):
+        frequency_band=self.raw.copy()
+        frequency_band.filter(freqency_band[0], freqency_band[1], fir_design='firwin')
+        return frequency_band
 
     def visualize_all_epochs(self, signal=True, rois=True):
         """
@@ -425,41 +447,147 @@ class Input_Data:
             for idx, img in enumerate(images):
                 img.savefig(self.dir_plots + '/left_' + ch_picks[idx] + '.png')
                 plt.close(img)
-            '''
-            for key, condition in self.event_mapping.items():
-                images = self.epochs[condition].plot_image(combine='mean')
-                #images = self.epochs[key].plot()
-                for idx, img in enumerate(images):
-                    img.savefig(
-                        self.dir_plots + '/' + condition + '_' + self.ch_names[idx] + '.png')
-                    plt.close(img)
-            '''
 
+    def create_evoked(self, rois=True):
+        """
+        Function to define the evoked variables starting from the epochs. The evoked will be considered separately for
+        each condition present in the annotation and for each ROI (otherwise, in general for the whole dataset)
+        :param rois: boolean variable to select if visualize results according to the rois or just the  general results
+        """
+        # for each condition
+        for condition, key in self.event_mapping.items():
+
+            # get only the epochs of interest
+            condition_epochs = self.epochs[key]
+            #condition_epochs = self.events_l
+
+            if rois:
+                # for each roi of interest
+                for roi in sorted(self.rois_numbers.keys()):
+                    # extract only the channels of interest
+                    condition_roi_epoch = condition_epochs.copy()
+                    condition_roi_epoch = condition_roi_epoch.pick(self.rois_numbers[roi])
+
+                    # average for each epoch and for each channel
+                    condition_roi_epoch = condition_roi_epoch.average()
+                    condition_roi_epoch = mne.channels.combine_channels(condition_roi_epoch, groups={'mean': list(range(len(self.rois_numbers[roi])))})
+
+                    # define the label for the current evoked and save it
+                    label = condition + '/' + roi
+                    self.evoked[label] = condition_roi_epoch
+
+            else:
+
+                # average for each epoch and for each channel
+                condition_epochs = condition_epochs.average()
+                condition_epochs = mne.channels.combine_channels(condition_epochs, groups={'mean': list(
+                    range(len(self.epochs.ch_names)))})
+
+                # save the current evoked
+                self.evoked['mean'] = condition_epochs
+
+    def visualize_evoked(self):
+        """
+        Function to plot the computed evoked for each condition and for each region of interest
+        """
+
+        # get minimum and maximum value of the mean signals
+        min_value, max_value = np.inf, -np.inf
+        for label in self.evoked.keys():
+            data = self.evoked[label].get_data()[0]
+            min_value = min(np.min(data), min_value)
+            max_value = max(np.max(data), max_value)
+
+        # path for images saving
+        Path(self.dir_files + '/epochs/').mkdir(parents=True, exist_ok=True)
+
+        number_conditions = len(list(self.event_mapping.keys()))
+        path = self.dir_files + '/epochs/conditions.png'
+        fig, axs = plt.subplots(int(np.ceil(number_conditions/2)), 2, figsize=(25.6, 19.2))
+
+        for i, ax in enumerate(fig.axes):
+
+            if i >= number_conditions:
+                break
+
+            condition = list(self.event_mapping.keys())[i]
+
+            # extract the roi from the key name of the dictionary containing the evoked
+            correct_labels = [s for s in self.evoked.keys() if condition + '/' in s]
+            correct_short_labels = [s.split('/')[1] for s in correct_labels]
+
+            # correctly plot all evoked
+            for idx, label in enumerate(correct_labels):
+                ax.plot(self.evoked[label].times * 1000, self.evoked[label].get_data()[0],
+                        label=correct_short_labels[idx])
+
+            # draw ERP vertical lines to see the peak of interest
+            #for erp in self.input_info['erp']:
+            #    ax.vlines(erp, ymin=min_value, ymax=max_value, linestyles='dashed')
+
+            ax.set_title(condition)
+            ax.legend()
+
+        plt.savefig(path)
+        plt.close()
+
+        path = self.dir_files + '/epochs/rois.png'
+        number_rois = len(list(self.rois_numbers.keys()))
+        fig, axs = plt.subplots(int(np.ceil(number_rois/2)), 2, figsize=(25.6, 19.2))
+
+        for i, ax in enumerate(fig.axes):
+
+            if i >= number_rois:
+                break
+
+            roi = list(self.rois_numbers.keys())[i]
+
+            # extract the condition from the key name of the dictionary containing the evoked
+            correct_labels = [s for s in self.evoked.keys() if '/' + roi in s]
+            correct_short_labels = [s.split('/')[0] for s in correct_labels]
+
+            # correctly plot all evoked
+            for idx, label in enumerate(correct_labels):
+                ax.plot(self.evoked[label].times * 1000, self.evoked[label].get_data()[0],
+                        label=correct_short_labels[idx])
+
+            # draw ERP vertical lines to see the peak of interest
+            #for erp in self.input_info['erp']:
+            #    ax.vlines(erp, ymin=min_value, ymax=max_value, linestyles='dashed')
+
+            ax.set_title(roi)
+            ax.legend()
+
+        plt.savefig(path)
+        plt.close()
 
     def run_raw(self):
         self.create_raw()
 
         #self.visualize_raw()
 
-        #self.raw_spatial_filtering()
+        self.raw_spatial_filtering()
 
-        #self.raw_time_filtering()
+        self.raw_time_filtering()
 
         #self.visualize_raw()
 
-        #self.raw_ica_remove_eog()
+        self.raw_ica()
 
         self.create_annotations()
         self.raw.set_annotations(self.annotations)
 
         #self.visualize_raw()
+        alpha_freq = [8, 12]
+        self.alpha_band = self.get_frequency_band(alpha_freq)
+        beta_freq = [16, 24]
+        self.beta_band = self.get_frequency_band(beta_freq)
 
-        self.create_epochs()
+        epochs_l, epochs_r = self.create_epochs(signal = 'alpha', visualize_epochs=True)
+        #self.create_evoked()
+        #self.visualize_evoked()
 
-
-
-
-        print('Debug')
+        return epochs_l, epochs_r
 
 
 
