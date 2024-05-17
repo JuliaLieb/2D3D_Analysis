@@ -81,10 +81,14 @@ class Input_Data:
         self.dir_plots = subject_directory + '/plots'
         if not os.path.exists(self.dir_plots):
             os.makedirs(self.dir_plots)
-        self.dir_files = subject_directory + '/dataset'
-        if not os.path.exists(self.dir_files):
-            print(".mat files are not available to initialize EEG signal.")
-            return
+        #self.dir_files = subject_directory + '/dataset'
+        #if not os.path.exists(self.dir_files):
+        #    print(".mat files are not available to initialize EEG signal.")
+        #    return
+        self.dir_epochs = subject_directory + '/epochs'
+        if not os.path.exists(self.dir_epochs):
+            os.makedirs(self.dir_epochs)
+
         # .xdf file
         self.xdf_file = subject_directory + self.subject_id + '_run' + str(self.n_run) + '_' + self.motor_mode + '_' + self.dimension + '.xdf'
         self.load_xdf()
@@ -154,7 +158,6 @@ class Input_Data:
         marker = streams[marker_pos]
         self.marker_ids = marker['time_series']
         self.marker_instants = marker['time_stamps']
-
 
         # cast to arrays
         #self.eeg_instants = np.array(self.eeg_instants)
@@ -279,16 +282,16 @@ class Input_Data:
         ica = mne.preprocessing.ICA(n_components=0.99999, method='fastica', random_state=97)
 
         ica.fit(eeg_raw)
-        ica.plot_sources(eeg_raw)
-        ica.plot_components()
+        #ica.plot_sources(eeg_raw)
+        #ica.plot_components()
         # ica.plot_properties(eeg_raw)
 
         reconst_raw = self.raw.copy()
         ica.apply(reconst_raw)
 
         viz_scaling = dict(eeg=1e-4, eog=1e-4, ecg=1e-4, bio=1e-7, misc=1e-5)
-        reconst_raw.plot(scalings=viz_scaling)
-        reconst_raw.plot_psd()
+        #reconst_raw.plot(scalings=viz_scaling)
+        #reconst_raw.plot_psd()
         self.raw = reconst_raw
 
     def create_annotations(self, full=True):
@@ -330,7 +333,7 @@ class Input_Data:
         # define MNE annotations
         self.annotations = mne.Annotations(triggers['onsets'], triggers['duration'], triggers['description'])
 
-    def create_epochs(self, signal='raw', visualize_epochs=True, rois=True, set_annotations=True):
+    def create_epochs(self, sig='raw', visualize_epochs=True, rois=True, set_annotations=True):
         """
         Function to extract events from the marker data, generate the correspondent epochs and determine annotation in
         the raw data according to the events
@@ -338,11 +341,11 @@ class Input_Data:
         :param rois: boolean variable to select if visualize results according to the rois or for each channel
         :param set_annotations: boolean variable, if it's necessary to set the annotations or not
         """
-        if signal == 'raw':
+        if sig == 'raw':
             signal = self.raw
-        elif signal == 'alpha':
+        elif sig == 'alpha':
             signal = self.alpha_band
-        elif signal == 'beta':
+        elif sig == 'beta':
             signal = self.beta_band
         else:
             print('Select correct signal type raw, alpha or beta.')
@@ -374,9 +377,9 @@ class Input_Data:
             self.visualize_all_epochs(signal=False, rois=False)
             #self.visualize_l_r_epochs(signal=False, rois=False)
 
-        self.epochs.save(self.dir_files + '/epochs_run' + str(self.n_run) + '-epo.fif', overwrite=True)
-        self.epochs_l.save(self.dir_files + '/epochs_l_run' + str(self.n_run) + '-epo.fif', overwrite=True)
-        self.epochs_r.save(self.dir_files + '/epochs_r_run' + str(self.n_run) + '-epo.fif', overwrite=True)
+        self.epochs.save(self.dir_epochs + '/run' + str(self.n_run) + '-' + sig + '-epo.fif', overwrite=True)
+        self.epochs_l.save(self.dir_epochs + '/l_run' + str(self.n_run) + '-' + sig + '-epo.fif', overwrite=True)
+        self.epochs_r.save(self.dir_epochs + '/r_run' + str(self.n_run) + '-' + sig + '-epo.fif', overwrite=True)
 
         return self.epochs_l, self.epochs_r
 
@@ -448,6 +451,7 @@ class Input_Data:
                 img.savefig(self.dir_plots + '/left_' + ch_picks[idx] + '.png')
                 plt.close(img)
 
+    '''
     def create_evoked(self, rois=True):
         """
         Function to define the evoked variables starting from the epochs. The evoked will be considered separately for
@@ -560,8 +564,9 @@ class Input_Data:
 
         plt.savefig(path)
         plt.close()
+    '''
 
-    def run_raw(self):
+    def run_raw(self, signal='raw'):
         self.create_raw()
 
         #self.visualize_raw()
@@ -583,7 +588,7 @@ class Input_Data:
         beta_freq = [16, 24]
         self.beta_band = self.get_frequency_band(beta_freq)
 
-        epochs_l, epochs_r = self.create_epochs(signal = 'alpha', visualize_epochs=True)
+        epochs_l, epochs_r = self.create_epochs(sig=signal, visualize_epochs=False)
         #self.create_evoked()
         #self.visualize_evoked()
 
