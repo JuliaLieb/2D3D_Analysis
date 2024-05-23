@@ -1,4 +1,3 @@
-import numpy as np
 import mne
 import matplotlib
 matplotlib.use('Qt5Agg')
@@ -6,7 +5,7 @@ from mne.datasets import eegbci
 from mne.preprocessing import ICA
 import mne_bids_pipeline
 
-from offline_analysis import EEG_Signal
+from TrialAndError.offline_analysis import EEG_Signal
 
 def gorella(current_config_path, subject_data_path):
     # source: https://g0rella.github.io/gorella_mwn/preprocessing_eeg.html
@@ -48,8 +47,8 @@ def gorella(current_config_path, subject_data_path):
 
 
 if __name__ == "__main__":
-    current_config_path = "C:/2D3D_Analysis/Data/S20-ses0/CONFIG_S20_run1_ME_2D.json"
-    subject_data_path = "C:/2D3D_Analysis/Data/S20-ses0/"
+    current_config_path = "/Data/S20-ses0/CONFIG_S20_run1_ME_2D.json"
+    subject_data_path = "/Data/S20-ses0/"
 
     eeg = EEG_Signal(current_config_path, subject_data_path)
 

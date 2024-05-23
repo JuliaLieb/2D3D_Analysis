@@ -1,27 +1,13 @@
 # ----------------------------------------------------------------------------------------------------------------------
 # Calculate values for statistical comparison
 # ----------------------------------------------------------------------------------------------------------------------
-
-import json
-from pathlib import Path
-
 import numpy as np
-import pyxdf
-import matplotlib.pyplot as plt
-from matplotlib.colors import TwoSlopeNorm
-import mne
-from mne.time_frequency import tfr_multitaper
-from mne.stats import permutation_cluster_1samp_test as pcluster_test
-import os
-import scipy.io
-import glob
-import sys
 import matplotlib
 matplotlib.use('Qt5Agg')
 
 
 
-def run(epochs):
+def run(epochs, task='r'):
     # regions of interest
     roi_dict = {
         "frontal left": ["F3", "F7"],

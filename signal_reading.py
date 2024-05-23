@@ -2,22 +2,13 @@
 # Read data of config and xdf signal
 # ----------------------------------------------------------------------------------------------------------------------
 import json
-from pathlib import Path
-
 import numpy as np
 import pyxdf
 import matplotlib.pyplot as plt
-from matplotlib.colors import TwoSlopeNorm
 import mne
-from mne.time_frequency import tfr_multitaper
-from mne.stats import permutation_cluster_1samp_test as pcluster_test
 import os
-import scipy.io
-import glob
-import sys
 import matplotlib
 matplotlib.use('Qt5Agg')
-from mne.datasets import eegbci
 
 class Input_Data:
     def __init__(self, config_file_path, subject_directory):
@@ -62,7 +53,10 @@ class Input_Data:
             else:
                 self.ch_names.append(name)
             if self.config['eeg-settings']['channels'][name]['enabled'] is False:
-                self.bads.append(name)
+                if name == 'FP2':
+                    self.bads.append('Fp2')
+                else:
+                    self.bads.append(name)
         self.n_ch = len(self.ch_names)
         # info['bads'] = bads
         # print(info)
@@ -566,7 +560,7 @@ class Input_Data:
         plt.close()
     '''
 
-    def run_raw(self, signal='raw'):
+    def run_raw(self):
         self.create_raw()
 
         #self.visualize_raw()
@@ -583,16 +577,20 @@ class Input_Data:
         self.raw.set_annotations(self.annotations)
 
         #self.visualize_raw()
+        self.raw.save(self.dir_epochs + '/run' + str(self.n_run) + '-raw.fif', overwrite=True)
+
         alpha_freq = [8, 12]
         self.alpha_band = self.get_frequency_band(alpha_freq)
         beta_freq = [16, 24]
         self.beta_band = self.get_frequency_band(beta_freq)
 
-        epochs_l, epochs_r = self.create_epochs(sig=signal, visualize_epochs=False)
+        self.create_epochs(sig='raw', visualize_epochs=False)
+        self.create_epochs(sig='alpha', visualize_epochs=False)
+        self.create_epochs(sig='beta', visualize_epochs=False)
         #self.create_evoked()
         #self.visualize_evoked()
 
-        return epochs_l, epochs_r
+        #return epochs_l, epochs_r
 
 
 

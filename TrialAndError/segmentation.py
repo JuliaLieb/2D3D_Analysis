@@ -2,13 +2,10 @@ import json
 
 import mne.io
 import numpy as np
-import os
 import pyxdf
-import scipy.io
 import matplotlib
 matplotlib.use('Qt5Agg')
 
-import offline_analysis
 
 def load_xdf(config_file, xdf_file_path, feedback):
     """Loads a xdf file and extracts the eeg and marker stream
