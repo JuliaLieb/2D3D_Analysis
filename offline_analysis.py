@@ -1,5 +1,6 @@
 # ----------------------------------------------------------------------------------------------------------------------
 # Offline analysis of recorded eeg data
+# Prerequisite: EEG, ERDS, LDA is filed as .mat file
 # ----------------------------------------------------------------------------------------------------------------------
 import json
 import numpy as np
@@ -38,7 +39,7 @@ class EEG_Signal:
         self.dir_plots = subject_directory + '/plots'
         if not os.path.exists(self.dir_plots):
             os.makedirs(self.dir_plots)
-        self.dir_files = subject_directory + '/dataset'
+        self.dir_files = subject_directory + '/data'
         if not os.path.exists(self.dir_files):
             print(".mat files are not available to initialize EEG signal.")
             return
@@ -215,7 +216,7 @@ class EEG_Signal:
         acc = EEG_Signal.compute_accuracy(self)
         print("Mean accuracy = {:.2f}".format(acc))
 
-    def plot_erds_maps(self, picks, show_epochs, show_erds, clustering=False):
+    def plot_erds_maps(self, picks, show_epochs=True, show_erds=True, clustering=False):
         tmin = -self.duration_ref
         tmax = self.duration_task
 

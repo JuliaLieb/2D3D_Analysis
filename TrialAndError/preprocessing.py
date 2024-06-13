@@ -5,7 +5,7 @@ from mne.datasets import eegbci
 from mne.preprocessing import ICA
 import mne_bids_pipeline
 
-from TrialAndError.offline_analysis import EEG_Signal
+from offline_analysis import EEG_Signal
 
 def gorella(current_config_path, subject_data_path):
     # source: https://g0rella.github.io/gorella_mwn/preprocessing_eeg.html

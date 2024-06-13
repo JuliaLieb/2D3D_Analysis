@@ -7,6 +7,7 @@ import pyxdf
 import matplotlib.pyplot as plt
 import mne
 import os
+import scipy
 import matplotlib
 matplotlib.use('Qt5Agg')
 
@@ -20,6 +21,7 @@ class Input_Data:
         self.n_session = self.config['gui-input-settings']['n-session']
         self.n_run = self.config['gui-input-settings']['n-run']
         self.motor_mode = self.config['gui-input-settings']['motor-mode']
+        self.erds_mode = self.config['feedback-model-settings']['erds']['mode']
         self.dimension = self.config['gui-input-settings']['dimension-mode']
         self.feedback = self.config['gui-input-settings']['fb-mode']
 
@@ -29,6 +31,7 @@ class Input_Data:
         self.duration_cue = self.config['general-settings']['timing']['duration-cue']
         self.duration_task = self.duration_cue + self.config['general-settings']['timing']['duration-task']
         self.n_ref = int(np.floor(self.sample_rate * self.duration_ref))
+        self.n_cue = int(np.floor(self.sample_rate * self.duration_cue))
         self.n_samples_task = int(np.floor(self.sample_rate * self.duration_task))
         self.n_samples_trial = self.n_ref + self.n_samples_task
 
@@ -72,20 +75,23 @@ class Input_Data:
         self.rois_numbers = {}
 
         # directories
-        self.dir_plots = subject_directory + '/plots'
+        self.dir_plots = subject_directory + 'plots'
         if not os.path.exists(self.dir_plots):
             os.makedirs(self.dir_plots)
         #self.dir_files = subject_directory + '/dataset'
         #if not os.path.exists(self.dir_files):
         #    print(".mat files are not available to initialize EEG signal.")
         #    return
-        self.dir_epochs = subject_directory + '/epochs'
+        self.dir_epochs = subject_directory + 'epochs'
         if not os.path.exists(self.dir_epochs):
             os.makedirs(self.dir_epochs)
 
         # .xdf file
         self.xdf_file = subject_directory + self.subject_id + '_run' + str(self.n_run) + '_' + self.motor_mode + '_' + self.dimension + '.xdf'
         self.load_xdf()
+
+        #class info
+        self.event_dict = dict(left=0, right=1)
 
         # epochs & annotations & events & frequency bands
         self.bad_epochs = ['Reference', 'Cue', 'Feedback', 'Session_Start', 'Session_End', 'End_of_Trial' ]
@@ -561,6 +567,12 @@ class Input_Data:
     '''
 
     def run_raw(self):
+        self.create_raw()
+        self.create_annotations()
+        self.raw.set_annotations(self.annotations)
+
+
+    def run_preprocessing(self):
         self.create_raw()
 
         #self.visualize_raw()
