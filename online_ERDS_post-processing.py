@@ -144,7 +144,7 @@ if __name__ == "__main__":
         'Start_of_Trial_r': 2,
         'Cue': 20,
         'Feedback': 30,
-        'End_of_Trial': 5,
+        'End_of_Trial': 5, # equal to break
         'Session_Start': 4,
         'Session_End': 3}
 
@@ -189,10 +189,10 @@ if __name__ == "__main__":
     while len(marker_interpol) < len(eeg_instants):
         marker_interpol.extend(marker_values[i])
 
-    plt.plot(eeg_instants, eeg_signal[:, 1])
-    plt.scatter(erds_time, erds_values[:, 0])
-    plt.plot(eeg_instants, marker_interpol)
-    plt.scatter(marker_instants, marker_values[1:])
+    #plt.plot(eeg_instants, eeg_signal[:, 1])
+    #plt.scatter(erds_time, erds_values[:, 0])
+    #plt.plot(eeg_instants, marker_interpol)
+    #plt.scatter(marker_instants, marker_values[1:])
 
     # find timespans when left/ right times with feedback
 
@@ -202,12 +202,12 @@ if __name__ == "__main__":
     for index, marker in enumerate(marker_interpol):
         if marker == 31 and marker_interpol[index-1] != 31: #FB_l start
             fb_times_l[i, 0] = eeg_instants[index]
-        elif marker != 31 and marker_interpol[index-1] == 31: #FB_l end
+        elif marker == 31 and marker_interpol[index+1] != 31: #FB_l end
             fb_times_l[i, 1] = eeg_instants[index]
             i += 1
         if marker == 32 and marker_interpol[index-1] != 32: #FB_r start
             fb_times_r[j, 0] = eeg_instants[index]
-        elif marker != 32 and marker_interpol[index-1] == 32: #FB_r end
+        elif marker == 32 and marker_interpol[index+1] != 32: #FB_r end
             fb_times_r[j, 1] = eeg_instants[index]
             j += 1
 
@@ -217,12 +217,12 @@ if __name__ == "__main__":
     for index, marker in enumerate(marker_interpol):
         if marker == 11 and marker_interpol[index-1] != 11: #ref_l start
             ref_times_l[i, 0] = eeg_instants[index]
-        elif marker != 11 and marker_interpol[index-1] == 11: #ref_l end
+        elif marker == 11 and marker_interpol[index+1] != 11: #ref_l end
             ref_times_l[i, 1] = eeg_instants[index]
             i += 1
         if marker == 12 and marker_interpol[index-1] != 12: #ref_r start
             ref_times_r[j, 0] = eeg_instants[index]
-        elif marker != 12 and marker_interpol[index-1] == 12: #ref_r end
+        elif marker == 12 and marker_interpol[index+1] != 12: #ref_r end
             ref_times_r[j, 1] = eeg_instants[index]
             j += 1
 
@@ -231,7 +231,7 @@ if __name__ == "__main__":
     # ==============================================================================
     # ERDS and LDA from ONLINE calculated results
     # ==============================================================================
-    """
+
     # calculate ERDS per task
 
     mean_erds_l = np.zeros((len(fb_times_l), 6))
@@ -258,14 +258,14 @@ if __name__ == "__main__":
             erds_roi = [] #clear for next roi
 
     print("Debug")
-    '''
+    #'''
     for i in range(6): # zeigt mittleren erds wert pro task und pro ROI
         plt.plot(range(len(fb_times_l)), mean_erds_l[:, i])
         plt.plot(range(len(fb_times_r)), mean_erds_r[:, i])
     plt.show()
-    '''
+    #'''
     # ------ bis hier hin bin ich momentan zufrieden! ------
-
+    """
     # LDA classification
     '''
     plt.plot(eeg_instants, eeg_signal[:, 8])

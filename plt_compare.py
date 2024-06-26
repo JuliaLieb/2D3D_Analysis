@@ -1,31 +1,62 @@
+import os
+
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Qt5Agg')
 
+subj = 'S15'
+ses = 1
+run = 3
+path = 'C:\\2D3D_Analysis\\Results\\'
+prefix_on_l = subj + '_ses' + str(ses) + '_run' + str(run) + '_online_ERDS_left'
+prefix_on_r = subj + '_ses' + str(ses) + '_run' + str(run) + '_online_ERDS_right'
+prefix_off_l = subj + '_ses' + str(ses) + '_run' + str(run) + '_offline_ERDS_left'
+prefix_off_r = subj + '_ses' + str(ses) + '_run' + str(run) + '_offline_ERDS_right'
 
-filename_on_l = 'C:\\2D3D_Analysis\\Results\\S20_ses1_run2_mean_erds_l.csv'
-filename_on_r = 'C:\\2D3D_Analysis\\Results\\S20_ses1_run2_mean_erds_r.csv'
-filename_off_l = 'C:\\2D3D_Analysis\\Results\\S20_ses1_run2mean_erds_calc_l_.csv'
-filename_off_r = 'C:\\2D3D_Analysis\\Results\\S20_ses1_run2mean_erds_calc_r_.csv'
-filename_off_l_nf = 'C:\\2D3D_Analysis\\Results\\S20_ses1_run2mean_erds_calc_l_2.csv'
-filename_off_r_nf = 'C:\\2D3D_Analysis\\Results\\S20_ses1_run2mean_erds_calc_r_2.csv'
-filename_other_l = "C:\\2D3D_Analysis\\Results\\S20-ses1-run2-left-ERDS-calculation"
 
-erds_on_l = np.loadtxt(filename_on_l, delimiter=',')
-erds_on_r =np.loadtxt(filename_on_r, delimiter=',')
-erds_off_l = np.loadtxt(filename_off_l, delimiter=',')
-erds_off_r = np.loadtxt(filename_off_r, delimiter=',')
-erds_off_l_nf = np.loadtxt(filename_off_l_nf, delimiter=',')
-erds_off_r_nf = np.loadtxt(filename_off_r_nf, delimiter=',')
-erds_other_l = np.loadtxt(filename_other_l, delimiter=',').T
+# calculated with main - plot online erds - ERDS_caculation.erds_values_plot_preparation
+list_online_r = []
+list_online_l = []
+for file in os.listdir(path):
+    if file.startswith(prefix_on_l):
+        list_online_l.append(path + file)
+    if file.startswith(prefix_on_r):
+        list_online_r.append(path + file)
 
-plt.plot(erds_on_l[:,2], label=f'online ROI {2+1}')
-plt.plot(erds_off_l[:,2], label=f'offline ROI {2+1}')
-#plt.plot(erds_off_l_nf[:,2], label=f'offline ROI nf {2+1}')
-#plt.plot(erds_other_l[:,2], label=f'other ROI {2+1}')
-plt.xlabel('Row Index')
-plt.ylabel('Value')
+# calculated from eeg with main - calc_offline_online_ERDS - ERDS_calculation.erds_per_roi
+list_offline_r = []
+list_offline_l = []
+for file in os.listdir(path):
+    if file.startswith(prefix_off_l):
+        list_offline_l.append(path + file)
+    if file.startswith(prefix_off_r):
+        list_offline_r.append(path + file)
+
+erds_on_l = np.loadtxt(list_online_l[0], delimiter=',')
+erds_on_r =np.loadtxt(list_online_r[0], delimiter=',')
+erds_off_l = np.loadtxt(list_offline_l[0], delimiter=',').T
+erds_off_r = np.loadtxt(list_offline_r[0], delimiter=',').T
+
+mean_erds_on_l = np.mean(erds_on_l, axis=0)
+mean_erds_on_r = np.mean(erds_on_r, axis=0)
+mean_erds_off_l = np.mean(erds_off_l, axis=0)
+mean_erds_off_r = np.mean(erds_off_r, axis=0)
+
+#print(mean_erds_on_l)
+print(mean_erds_on_r)
+#print(mean_erds_off_l)
+print(mean_erds_off_r)
+
+roi = 0
+#plt.plot(erds_on_l[:,0], label=f'online left ROI {2+1}')
+plt.plot(erds_on_r[:,roi], label=f'online right ROI {roi+1}')
+#plt.plot(erds_off_l[:,0], label=f'offline left ROI {2+1}')
+plt.plot(erds_off_r[:,roi], label=f'offline right ROI {roi+1}')
+plt.xlabel('Task No.')
+plt.ylabel('ERDS Value')
+plt.grid(True)
+plt.xticks(np.arange(0,len(erds_on_l),1))
 plt.title('ERDS comparison')
 plt.legend()
 plt.show()

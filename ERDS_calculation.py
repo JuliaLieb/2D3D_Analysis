@@ -83,8 +83,8 @@ class Data_from_Mat:
 
 def mean_erds_per_roi(epochs, roi_dict, task='r'):
     sample_rate = 500
-    time_r = [int(1.5*sample_rate), 3*sample_rate]
-    time_a = [int(4.25*sample_rate), int(11.25*sample_rate)]
+    time_r = [int(0*sample_rate), 3*sample_rate]
+    time_a = [int(3*sample_rate), int(11.25*sample_rate)]
 
     erds_roi_list = []
     for roi in roi_dict.keys():
@@ -100,10 +100,10 @@ def mean_erds_per_roi(epochs, roi_dict, task='r'):
 
     return erds_roi_list
 
-def erds_per_roi(epochs, roi_dict, task='r'):
+def erds_per_roi(epochs, roi_dict):
     sample_rate = 500
-    time_r = [int(1.5*sample_rate), 3*sample_rate]
-    time_a = [int(4.25*sample_rate), int(11.25*sample_rate)]
+    time_r = [int(0*sample_rate)+1, 3*sample_rate+1] # 0-3s per epoch
+    time_a = [int(5.25*sample_rate+1), int(11.25*sample_rate)+1]  # 4.25-11.25s per epoch
 
     erds_roi_mean = []
     erds_roi_trial = []
@@ -209,10 +209,10 @@ def erds_values_plot_preparation(subject_data_path, signal):
         data_1 = data_epoched[np.where(labels == 0)[0]]
         data_2 = data_epoched[np.where(labels == 1)[0]]
 
-        plot_erds_values(np.mean(data_1, axis=0), 'ERDS - left hand', name, signal.sample_rate, signal.n_cue, signal.erds_mode, cl='l', dir_plots=signal.dir_plots, n_ref=signal.n_ref)
-        plot_erds_values(np.mean(data_2, axis=0), 'ERDS - right hand', name, signal.sample_rate, signal.n_cue, signal.erds_mode, cl='r', dir_plots=signal.dir_plots, n_ref=signal.n_ref)
+        #plot_erds_values(np.mean(data_1, axis=0), 'ERDS - left hand', name, signal.sample_rate, signal.n_cue, signal.erds_mode, cl='l', dir_plots=signal.dir_plots, n_ref=signal.n_ref)
+        #plot_erds_values(np.mean(data_2, axis=0), 'ERDS - right hand', name, signal.sample_rate, signal.n_cue, signal.erds_mode, cl='r', dir_plots=signal.dir_plots, n_ref=signal.n_ref)
 
-    return data_1, data_2  #returns erds values shown for class 1 (left) and class 2 (right) as online feedback fpr 6 ROIs
+    return np.mean(data_1, axis=2), np.mean(data_2, axis=2)  #returns erds values shown for class 1 (left) and class 2 (right) as online feedback fpr 6 ROIs
 
 def calc_clustering(tfr_ev, ch, kwargs):
     # positive clusters

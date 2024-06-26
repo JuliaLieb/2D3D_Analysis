@@ -10,6 +10,8 @@ import os
 import scipy
 import matplotlib
 matplotlib.use('Qt5Agg')
+from scipy.signal import iirfilter, sosfiltfilt, iirdesign, sosfilt_zi, sosfilt
+from scipy import signal
 
 class Input_Data:
     def __init__(self, config_file_path, subject_directory):
@@ -36,8 +38,8 @@ class Input_Data:
         self.n_samples_trial = self.n_ref + self.n_samples_task
 
         # other settings
-        self.lp_freq = 1  # low pass frequency
-        self.hp_freq = 60  # high pass frequency
+        self.lp_freq = 9  # low pass frequency
+        self.hp_freq = 11    # high pass frequency
         self.n_freq = 50  # Notch filter frequency
 
         # initializations
@@ -89,6 +91,7 @@ class Input_Data:
         # .xdf file
         self.xdf_file = subject_directory + self.subject_id + '_run' + str(self.n_run) + '_' + self.motor_mode + '_' + self.dimension + '.xdf'
         self.load_xdf()
+        self.eeg_signal = self.eeg_signal * 1e-6
 
         #class info
         self.event_dict = dict(left=0, right=1)
@@ -146,7 +149,7 @@ class Input_Data:
         eeg_pos = np.where(streams_info == self.lsl_config['eeg']['name'])[0][0]
         eeg = streams[eeg_pos]
         self.eeg_signal = eeg['time_series'][:, :32]
-        self.eeg_signal = self.eeg_signal * 1e-6
+        #
         # get the instants
         self.eeg_instants = eeg['time_stamps']
         # get the sampling frequencies
@@ -169,7 +172,7 @@ class Input_Data:
             self.fix_lost_samples(orn_signal, orn_instants, effective_sample_frequency)
 
         # remove signal mean
-        self.eeg_signal = self.eeg_signal - np.mean(self.eeg_signal, axis=0)
+        #self.eeg_signal = self.eeg_signal - np.mean(self.eeg_signal, axis=0) # wird bei spatial filtering gemacht
 
         # get the length of the acquisition
         self.length = self.eeg_instants.shape[0]
@@ -249,11 +252,55 @@ class Input_Data:
         """
         # apply band-pass filter
         if not (self.lp_freq is None and self.hp_freq is None):
-            self.raw.filter(l_freq=self.lp_freq, h_freq=self.hp_freq, l_trans_bandwidth=0.1, h_trans_bandwidth=0.1, verbose=40)
+            self.raw.filter(l_freq=self.lp_freq, h_freq=self.hp_freq, l_trans_bandwidth=0.1, h_trans_bandwidth=0.1,
+                            verbose=40, method='fir')
 
         # apply notch filter
         if self.n_freq is not None:
             self.raw.notch_filter(freqs=self.n_freq, verbose=40)
+
+    def raw_time_filtering_as_online(self):
+        # Define the frequency specifications
+        f_pass1 = 9.0  # Lower passband frequency
+        f_stop1 = 7.5  # Lower stopband frequency
+        f_pass2 = 11.0  # Upper passband frequency
+        f_stop2 = 12.0  # Upper stopband frequency
+        n = 12
+
+        # Normalize frequencies by Nyquist frequency (half the sampling rate)
+        nyquist = self.sample_rate / 2.0
+        wp = [f_pass1 / nyquist, f_pass2 / nyquist]
+        ws = [f_stop1 / nyquist, f_stop2 / nyquist]
+
+        # Get data from raw
+        data = self.raw.get_data()
+
+        opt1, opt2, opt3 = False, False, False
+
+        if opt1:
+            # Option 1
+            # Filterentwurf: Übergangsbänder und Passband-Ripple sowie Stopband-Dämpfung spezifizieren
+            gpass = 1  # Maximaler Verlust im Passband (dB)
+            gstop = 40  # Minimale Dämpfung im Stopband (dB)
+            sos = iirdesign(wp=wp, ws=ws, gpass=gpass, gstop=gstop, ftype='butter', output='sos')
+            filt_data = sosfiltfilt(sos, data, axis=1)
+
+        elif opt2:
+            # Option 2
+            sos = iirfilter(N=n, Wn=wp, rs=60, btype='band', analog=False, ftype='butter', output='sos')
+            filt_data = sosfilt(sos, data, axis=1)
+
+        elif opt3:
+            # Option 3
+            sos = iirfilter(int(n / 2), wp, btype='bandpass', ftype='butter', output='sos')
+            zi = sosfilt_zi(sos)
+            filt_data, _ = sosfilt(sos, data, zi=zi, axis=0)
+
+        else:
+            print("no filter option chosen - ERROR")
+
+        # Write filtered data to raw
+        self.raw._data = filt_data
 
     def visualize_raw(self, signal=True, psd=False, psd_topo=False):
         """
@@ -568,9 +615,12 @@ class Input_Data:
 
     def run_raw(self):
         self.create_raw()
+        #self.raw_spatial_filtering()
+        self.raw_time_filtering()
+        #self.raw_time_filtering_as_online()
         self.create_annotations()
         self.raw.set_annotations(self.annotations)
-
+        self.create_epochs(sig='raw', visualize_epochs=False)
 
     def run_preprocessing(self):
         self.create_raw()
