@@ -10,6 +10,7 @@ import json
 from calc_acc import calculate_accuracy
 import sys
 from datetime import datetime
+import plt_compare
 
 
 def find_config_files(path, subject_id):
@@ -340,5 +341,8 @@ if __name__ == "__main__":
 
             sys.stdout = sys.__stdout__  # Set the standard output back to the console
             print("Accuracy saved in 'acc_output.txt'.")
+
+    if plot_online_ERDS and calc_offline_online_ERDS:
+        plt_compare.plt_compar_on_off(results_path, subj, ses_ix, run)
 
     print("All tasks completed!")
