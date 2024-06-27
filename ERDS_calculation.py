@@ -10,8 +10,14 @@ import glob
 import scipy.io
 import os
 from mne.stats import permutation_cluster_1samp_test as pcluster_test
+from mne.datasets import eegbci
+from mne.io import concatenate_raws, read_raw_edf
 import mne
 import json
+from datetime import datetime
+import pandas as pd
+import seaborn as sns
+from matplotlib.colors import TwoSlopeNorm
 
 class Data_from_Mat:
     def __init__(self, config_file_path, subject_directory):
@@ -229,11 +235,16 @@ def calc_clustering(tfr_ev, ch, kwargs):
 
     return c, p, mask
 
-def plot_erds_maps(data_from_mat, picks, show_epochs=True, show_erds=True, non_clustering=True, clustering=False):
+def plot_erds_maps(data_from_mat, picks, show_epochs=True, show_erds=True, cluster_mode=False,
+                   preproc_data=None, tfr_mode=False):
     tmin = -data_from_mat.duration_ref
     tmax = data_from_mat.duration_task
+    if preproc_data==None:
+        raw_data = data_from_mat.raw
+    else:
+        raw_data = preproc_data
 
-    epochs = mne.Epochs(data_from_mat.raw, data_from_mat.events, data_from_mat.event_dict, tmin - 0.5, tmax + 0.5, picks=picks, baseline=None,
+    epochs = mne.Epochs(raw_data, data_from_mat.events, data_from_mat.event_dict, tmin - 0.5, tmax + 0.5, picks=picks, baseline=None,
                         preload=True)
     if show_epochs == True:
         epochs.plot(picks=picks, show_scrollbars=True, events=data_from_mat.events, event_id=data_from_mat.event_dict, block=False)
@@ -258,16 +269,16 @@ def plot_erds_maps(data_from_mat, picks, show_epochs=True, show_erds=True, non_c
     for event in data_from_mat.event_dict:
         # select desired epochs for visualization
         tfr_ev = tfr[event]
-        fig, axes = plt.subplots(1, 3, figsize=(12, 4), gridspec_kw={"width_ratios": [10, 10, 0.5]})  # , 0.5
+        fig, axes = plt.subplots(1, 4, figsize=(12, 4), gridspec_kw={"width_ratios": [10, 10, 10, 1]})  # , 0.5
         axes = axes.flatten()
         for ch, ax in enumerate(axes[:-1]):  # for each channel  axes[:-1]
-            if clustering:
+            if cluster_mode:
                 # find clusters
                 c, p, mask = calc_clustering(tfr_ev, ch, kwargs)
 
                 # plot TFR (ERDS map with masking)
                 tfr_ev.average().plot([ch], cmap="RdBu", cnorm=cnorm, axes=ax,
-                                  colorbar=False, show=False, vlim=(-1.5, 1.5), mask=mask)  # , mask=mask,
+                                      colorbar=False, show=False, vlim=(-1.5, 1.5), mask=mask)  # , mask=mask,
             else:
                 tfr_ev.average().plot([ch], cmap="RdBu", cnorm=cnorm, axes=ax,
                                       colorbar=False, show=False, vlim=(-1.5, 1.5))
@@ -282,16 +293,70 @@ def plot_erds_maps(data_from_mat, picks, show_epochs=True, show_erds=True, non_c
         fig.suptitle(f"ERDS - {event} hand {data_from_mat.motor_mode} run {data_from_mat.n_run} {data_from_mat.dimension}")
         fig.canvas.manager.set_window_title(event + " hand ERDS maps")
 
-        if clustering:
-            plt.savefig('{}/erds_map_cluster_{}_run{}_{}_{}_{}{}.png'.format(data_from_mat.dir_plots,
-                                                                     data_from_mat.motor_mode, str(data_from_mat.n_run),
-                                                                     data_from_mat.dimension, event, picks[0], picks[1]),
-                        format='png')
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        plt.savefig('{}/erds_map_{}_run{}_{}_{}_{}{}_{}.png'.format(data_from_mat.dir_plots,
+                                                                 data_from_mat.motor_mode, str(data_from_mat.n_run),
+                                                                 data_from_mat.dimension, event, picks[0], picks[1], timestamp),
+                    format='png')
+    if show_erds == True:
+        plt.show()
 
-        if non_clustering:
-            plt.savefig('{}/erds_map_{}_run{}_{}_{}_{}{}.png'.format(data_from_mat.dir_plots,
-                                                                     data_from_mat.motor_mode, str(data_from_mat.n_run),
-                                                                     data_from_mat.dimension, event, picks[0], picks[1]),
-                        format='png')
-        if show_erds == True:
-            plt.show()
+    if tfr_mode:
+        df = tfr.to_data_frame(time_format=None)
+        print(df.head())
+
+        df = tfr.to_data_frame(time_format=None, long_format=True)
+
+        # Map to frequency bands:
+        freq_bounds = {"_": 0, "delta": 3, "theta": 7, "alpha": 13, "beta": 35, "gamma": 140}
+        df["band"] = pd.cut(
+            df["freq"], list(freq_bounds.values()), labels=list(freq_bounds)[1:]
+        )
+
+        # Filter to retain only relevant frequency bands:
+        freq_bands_of_interest = ["delta", "theta", "alpha", "beta"]
+        df = df[df.band.isin(freq_bands_of_interest)]
+        df["band"] = df["band"].cat.remove_unused_categories()
+
+        # Order channels for plotting:
+        df["channel"] = df["channel"].cat.reorder_categories(picks, ordered=True)
+
+        g = sns.FacetGrid(df, row="band", col="channel", margin_titles=True)
+        g.map(sns.lineplot, "time", "value", "condition", n_boot=10)
+        axline_kw = dict(color="black", linestyle="dashed", linewidth=0.5, alpha=0.5)
+        g.map(plt.axhline, y=0, **axline_kw)
+        g.map(plt.axvline, x=3, **axline_kw)
+        g.set(ylim=(None, 1.5))
+        g.set_axis_labels("Time (s)", "ERDS")
+        g.set_titles(col_template="{col_name}", row_template="{row_name}")
+        g.add_legend(ncol=2, loc="lower center")
+        g.fig.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.08)
+        plt.show()
+
+        df_mean = (
+            df.query("time > 0")
+            .groupby(["condition", "epoch", "band", "channel"], observed=False)[["value"]]
+            .mean()
+            .reset_index()
+        )
+
+        g = sns.FacetGrid(
+            df_mean, col="condition", col_order=["left", "right"], margin_titles=True
+        )
+        g = g.map(
+            sns.violinplot,
+            "channel",
+            "value",
+            "band",
+            cut=0,
+            palette="deep",
+            order=picks,
+            hue_order=freq_bands_of_interest,
+            linewidth=0.5,
+        ).add_legend(ncol=4, loc="lower center")
+
+        g.map(plt.axhline, **axline_kw)
+        g.set_axis_labels("", "ERDS")
+        g.set_titles(col_template="{col_name}", row_template="{row_name}")
+        g.fig.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.3)
+        plt.show()

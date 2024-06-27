@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Qt5Agg')
 
-def plt_compar_on_off(path, subj, ses, run):
+def plt_compar_on_off(path, subj, ses, run, rois):
     prefix_on_l = subj + '_ses' + str(ses) + '_run' + str(run) + '_online_ERDS_left'
     prefix_on_r = subj + '_ses' + str(ses) + '_run' + str(run) + '_online_ERDS_right'
     prefix_off_l = subj + '_ses' + str(ses) + '_run' + str(run) + '_offline_ERDS_left'
@@ -29,33 +29,41 @@ def plt_compar_on_off(path, subj, ses, run):
         if file.startswith(prefix_off_r):
             list_offline_r.append(path + file)
 
-    erds_on_l = np.loadtxt(list_online_l[0], delimiter=',')
-    erds_on_r =np.loadtxt(list_online_r[0], delimiter=',')
-    erds_off_l = np.loadtxt(list_offline_l[0], delimiter=',').T
-    erds_off_r = np.loadtxt(list_offline_r[0], delimiter=',').T
+    erds_on_l = np.loadtxt(list_online_l[-1], delimiter=',')
+    erds_on_r =np.loadtxt(list_online_r[-1], delimiter=',')
+    erds_off_l = np.loadtxt(list_offline_l[-1], delimiter=',').T
+    erds_off_r = np.loadtxt(list_offline_r[-1], delimiter=',').T
+    erds_off_l2 = np.loadtxt(list_offline_l[-2], delimiter=',').T
+    erds_off_r2 = np.loadtxt(list_offline_r[-2], delimiter=',').T
 
     mean_erds_on_l = np.mean(erds_on_l, axis=0)
     mean_erds_on_r = np.mean(erds_on_r, axis=0)
     mean_erds_off_l = np.mean(erds_off_l, axis=0)
     mean_erds_off_r = np.mean(erds_off_r, axis=0)
+    mean_erds_off_l2 = np.mean(erds_off_l2, axis=0)
+    mean_erds_off_r2 = np.mean(erds_off_r2, axis=0)
 
     #print(mean_erds_on_l)
     print(mean_erds_on_r)
     #print(mean_erds_off_l)
     print(mean_erds_off_r)
+    #print(mean_erds_off_l2)
+    #print(mean_erds_off_r2)
 
-    roi = 0
-    #plt.plot(erds_on_l[:,0], label=f'online left ROI {2+1}')
-    plt.plot(erds_on_r[:,roi], label=f'online right ROI {roi+1}')
-    #plt.plot(erds_off_l[:,0], label=f'offline left ROI {2+1}')
-    plt.plot(erds_off_r[:,roi], label=f'offline right ROI {roi+1}')
-    plt.xlabel('Task No.')
-    plt.ylabel('ERDS Value')
-    plt.grid(True)
-    plt.xticks(np.arange(0,len(erds_on_l),1))
-    plt.title('ERDS comparison')
-    plt.legend()
-    plt.show()
+    for roi in rois:
+        plt.plot(erds_on_l[:,roi], label=f'online left ROI {roi+1} calculated with {list_online_l[-1]}')
+        #plt.plot(erds_on_r[:,roi], label=f'online right ROI {roi+1} calculated with {list_online_r[-1]}')
+        plt.plot(erds_off_l[:, roi], label=f'offline left ROI {roi + 1} calculated with {list_offline_l[-1]}')
+        #plt.plot(erds_off_r[:,roi], label=f'offline right ROI {roi+1} calculated with {list_offline_r[-1]}')
+        plt.plot(erds_off_l2[:, roi], label=f'offline left ROI {roi + 1} calculated with {list_offline_l[-2]}')
+        # plt.plot(erds_off_r2[:,roi], label=f'offline right ROI {roi+1} calculated with {list_offline_r[-2]}')
+        plt.xlabel('Task No.')
+        plt.ylabel('ERDS Value')
+        plt.grid(True)
+        plt.xticks(np.arange(0,len(erds_on_l),1))
+        plt.title('ERDS comparison')
+        plt.legend()
+        plt.show()
 
     '''
     avg = []

@@ -24,8 +24,13 @@ def find_config_files(path, subject_id):
 def save_epochs_per_run(config_files, path):
     for config in config_files:
         input_data = Input_Data(config, path)
-        input_data.run_raw() # raw data
-        #input_data.run_preprocessing()  # preprocessed data
+        input_data.run_preprocessing_to_epoch()  # preprocessed data
+
+def signal_reading_preprocesiing(config_files, path):
+    for config in config_files:
+        input_data = Input_Data(config, path)
+        #input_data.run_raw() # raw data
+        input_data.preprocess_raw()  # preprocessing raw data
 
 def combine_epochs(n_runs, path, task='r', sig='raw'):
     epochs = []
@@ -139,10 +144,10 @@ if __name__ == "__main__":
     session_list = [0, 1, 2]
 
     ### ----- DATA FOR TESTING ----- ###
-    subject_list = ['S15']
+    subject_list = ['S14']
     subj = subject_list[0]
-    ses_ix = session_list[1]
-    run = 3
+    ses_ix = session_list[0]
+    run = 1
 
     mon_me = [0] * len(subject_list)
     mon_mi = [2, 1, 1, 2, 1, 2, 2, 1, 2, 1, 1, 2, 2, 1, 2, 1, 2]
@@ -159,10 +164,13 @@ if __name__ == "__main__":
     create_epoch_files = False  # raw or preprocessed eeg data cut into epochs and saved
     create_mean_erds_results = False  # calculate results for statistical analysis
     save_xdf_to_mat = False  # saves EEG, ERDS and LDA as .mat files
-    plot_online_ERDS = True  # plots results of oline calculated ERDS
-    calc_offline_online_ERDS = True  # reproduce online calculated results of ERDS
+    calc_online_ERDS = False  # calculates results of oline calculated ERDS
+    calc_offline_online_ERDS = False  # reproduce online calculated results of ERDS
     plot_ERDS_maps = False  # plots ERDS maps from EEG
     calc_acc = False  # computes average of online calculated accuracy per run
+    plot_comparison = False
+    preprocess_raw = False
+    reading_sig = True
     # -------------------------------------
     #######################################
     # -------------------------------------
@@ -172,15 +180,16 @@ if __name__ == "__main__":
         calls run per config file and saves as epochs in .fif-file. 
         '''
         for subj in subject_list:
-            for ses in session_list:
-                try:
-                    subject_data_path = data_path + subj + '-ses' + str(ses) + '/'
-                    print(f'\n\n\n\n ---------------Current path: {subject_data_path}--------------- \n')
-                    config_files = find_config_files(subject_data_path, subject_id=subj)
-                    save_epochs_per_run(config_files, subject_data_path)
-                except Exception as e:
-                    print(f'Error processing subject {subj} {ses}. Exception: {e}')
-                    continue
+            #for ses in session_list:
+            ses = ses_ix
+            try:
+                subject_data_path = data_path + subj + '-ses' + str(ses) + '/'
+                print(f'\n\n\n\n ---------------Current path: {subject_data_path}--------------- \n')
+                config_files = find_config_files(subject_data_path, subject_id=subj)
+                save_epochs_per_run(config_files, subject_data_path)
+            except Exception as e:
+                print(f'Error processing subject {subj} {ses}. Exception: {e}')
+                continue
 
     if create_mean_erds_results:
         '''
@@ -254,7 +263,7 @@ if __name__ == "__main__":
                 print(f'Error processing subject {current_subject}. Exception: {e}')
                 continue
 
-    if plot_online_ERDS:
+    if calc_online_ERDS:
         '''
             calls .mat-files of erds and plots results of online calculated ERDS values
         '''
@@ -298,12 +307,10 @@ if __name__ == "__main__":
         '''
             plots ERDS maps calculated from EEG.mat
         '''
-        subj = subject_list[0]
-        ses_ix = session_list[0]
-        subject_data_path = data_path + subj + '-ses' + str(ses_ix) + '/'
-        config_file_path = find_config_files(subject_data_path, subject_id=subj)[1]
+        subject_data_path, config_file_path, xdf_file_path = load_current_file(subj, ses_ix, run)
         data_from_mat = ERDS_calculation.Data_from_Mat(config_file_path, subject_data_path)
-        ERDS_calculation.plot_erds_maps(data_from_mat, picks=['C3', 'C4'], show_epochs=True, show_erds=False, non_clustering=True, clustering=True)
+        ERDS_calculation.plot_erds_maps(data_from_mat, picks=['C3', 'Cz', 'C4'], show_epochs=False,
+                                        show_erds=True, cluster_mode=True, preproc_data=False, tfr_mode=True)
 
     if calc_acc:
         filename = get_timefilename('acc_output.txt', results_path)
@@ -342,7 +349,20 @@ if __name__ == "__main__":
             sys.stdout = sys.__stdout__  # Set the standard output back to the console
             print("Accuracy saved in 'acc_output.txt'.")
 
-    if plot_online_ERDS and calc_offline_online_ERDS:
-        plt_compare.plt_compar_on_off(results_path, subj, ses_ix, run)
+    if plot_comparison:
+        plt_compare.plt_compar_on_off(results_path, subj, ses_ix, run, rois=[2])
 
+    if preprocess_raw:
+        subject_data_path, config_file_path, xdf_file_path = load_current_file(subj, ses_ix, run)
+        #input_data = Input_Data(config_file_path, subject_data_path)
+        #input_data.preprocess_raw()  # raw data
+        data_from_mat = ERDS_calculation.Data_from_Mat(config_file_path, subject_data_path)
+        preproc_data = mne.io.read_raw_fif(subject_data_path +'preproc_raw'+ '/run' + str(run) + '-' + '_preproc-raw.fif', preload=True)
+        ERDS_calculation.plot_erds_maps(data_from_mat, picks=['C3', 'Cz', 'C4'], show_epochs=False,
+                                        show_erds=True, cluster_mode=False, preproc_data=preproc_data, tfr_mode=True)
+
+
+    if reading_sig:
+        subject_data_path, config_file_path, xdf_file_path = load_current_file(subj, ses_ix, run)
+        signal_reading_preprocesiing([config_file_path], subject_data_path)
     print("All tasks completed!")
