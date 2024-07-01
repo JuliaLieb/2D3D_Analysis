@@ -16,8 +16,76 @@ import pyxdf
 from matplotlib.colors import TwoSlopeNorm
 matplotlib.use('Qt5Agg')
 import pandas as pd
-from scipy.signal import butter, filtfilt, sosfiltfilt
+from scipy.signal import butter, filtfilt, sosfiltfilt, sosfilt
 import bandpass
+from datetime import datetime
+from scipy import signal
+
+class Bandpass:
+    """Bandpass unit.
+
+    Holds parameters and methods for bandpass filtering.
+
+    Parameters
+    ----------
+    order: `int`
+        The order of the filter.
+    fpass: `list`
+        Frequencies of the filter.
+    n: `int`
+        Number of eeg channels.
+
+    Other Parameters
+    ----------------
+    sos: `ndarray`
+        Second-order sections representation of the filter.
+    zi0: `ndarray`
+        Initial conditions for the filter delay.
+    zi: `ndarray`
+        Current filter delay values.
+    """
+
+    def __init__(self, order, fstop, fpass, n):
+        self.order = order
+        self.fstop = fstop
+        self.fpass = fpass
+        self.n = n
+        self.sos = None
+        self.zi0 = None
+        self.zi = None
+
+        self.__init_filter()
+
+    def __init_filter(self):
+        """Computes the second order sections of the filter and the initial conditions for the filter delay.
+        """
+
+        self.sos = signal.iirfilter(int(self.order / 2), self.fpass, btype='bandpass', ftype='butter',
+                                    output='sos')
+
+        zi = signal.sosfilt_zi(self.sos)
+
+        if self.n > 1:
+            zi = np.tile(zi, (self.n, 1, 1)).T
+        self.zi0 = zi.reshape((np.shape(self.sos)[0], 2, self.n))
+        self.zi = self.zi0
+
+    def bandpass_filter(self, x):
+        """Bandpass filters the input array.
+
+        Parameters
+        ----------
+        x: `ndarray`
+            Raw eeg data.
+
+        Returns
+        -------
+        y: `int`
+            Band passed data.
+        """
+
+        y, self.zi = signal.sosfilt(self.sos, x, zi=self.zi, axis=0)
+        return y
 
 
 def butter_bandpass_filter(data, fs, fpass, fstop, order=12):
@@ -67,13 +135,26 @@ def butter_bandpass_filter(data, fs, fpass, fstop, order=12):
 
     return filtered_data
 
+def remove_zero_lines(array):
+    # input: ndarray size (x,y,z)
+    # mask to remove zero-lines
+    array_clean = []
+    for i in range(array.shape[0]):
+        slice_ = array[i]
+        mask = ~(np.all(slice_ == 0, axis=1))
+        filtered_slice = slice_[mask]
+        array_clean.append(filtered_slice)
+    array_clean = np.array(array_clean, dtype=object)
+    return array_clean
+
 
 if __name__ == "__main__":
     cwd = os.getcwd()
     data_path = cwd + '/Data/'
+    result_path = cwd + '/Results/'
 
-    config_file_path = "C:/2D3D_Analysis/Data/S20-ses1/CONFIG_S20_run2_MI_2D.json"
-    xdf_file_path = "C:/2D3D_Analysis/Data/S20-ses1/S20_run2_MI_2D.xdf"
+    config_file_path = "C:/2D3D_Analysis/Data/S14-ses0/CONFIG_S14_run2_ME_2D.json"
+    xdf_file_path = "C:/2D3D_Analysis/Data/S14-ses0/S14_run2_ME_2D.xdf"
 
     # CONFIG
     with open(config_file_path) as json_file:
@@ -106,22 +187,6 @@ if __name__ == "__main__":
 
     streams_info = np.array(stream_names)
 
-    # ERDS and LDA recordings
-    erds_pos = np.where(streams_info == lsl_config['fb-erds']['name'])[0][0]
-    lda_pos = np.where(streams_info == lsl_config['fb-lda']['name'])[0][0]
-    erds = streams[erds_pos]
-    lda = streams[lda_pos]
-    erds_time = erds['time_stamps']
-    erds_values = erds['time_series']
-    lda_time = lda['time_stamps']
-    lda_values = lda['time_series']
-
-    # gets 'BrainVision RDA Markers' stream
-    orn_pos = np.where(streams_info == 'BrainVision RDA Markers')[0][0]
-    orn = streams[orn_pos]
-    orn_signal = orn['time_series']
-    orn_instants = orn['time_stamps']
-
     # gets 'BrainVision RDA Data' stream - EEG data
     eeg_pos = np.where(streams_info == lsl_config['eeg']['name'])[0][0]
     eeg = streams[eeg_pos]
@@ -129,15 +194,23 @@ if __name__ == "__main__":
     eeg_signal = eeg_signal * 1e-6
     # get the instants
     eeg_instants = eeg['time_stamps']
+    time_zero = eeg_instants[0]
+    eeg_instants = eeg_instants - time_zero
     # get the sampling frequencies
     eeg_fs = int(float(eeg['info']['nominal_srate'][0]))
     effective_sample_frequency = float(eeg['info']['effective_srate'])
+
+    # gets 'BrainVision RDA Markers' stream
+    orn_pos = np.where(streams_info == 'BrainVision RDA Markers')[0][0]
+    orn = streams[orn_pos]
+    orn_signal = orn['time_series']
+    orn_instants = orn['time_stamps']-time_zero
 
     # gets marker stream
     marker_pos = np.where(streams_info == lsl_config['marker']['name'])[0][0]
     marker = streams[marker_pos]
     marker_ids = marker['time_series']
-    marker_instants = marker['time_stamps']
+    marker_instants = marker['time_stamps']-time_zero
     marker_dict = {
         'Reference': 10,
         'Start_of_Trial_l': 1,
@@ -147,6 +220,16 @@ if __name__ == "__main__":
         'End_of_Trial': 5, # equal to break
         'Session_Start': 4,
         'Session_End': 3}
+
+    # ERDS and LDA recordings
+    erds_pos = np.where(streams_info == lsl_config['fb-erds']['name'])[0][0]
+    lda_pos = np.where(streams_info == lsl_config['fb-lda']['name'])[0][0]
+    erds = streams[erds_pos]
+    lda = streams[lda_pos]
+    erds_time = erds['time_stamps']-time_zero
+    erds_values = erds['time_series']
+    lda_time = lda['time_stamps']-time_zero
+    lda_values = lda['time_series']
 
     erds_on = []
     eeg_time_round = np.round(eeg_instants, 4)
@@ -189,13 +272,9 @@ if __name__ == "__main__":
     while len(marker_interpol) < len(eeg_instants):
         marker_interpol.extend(marker_values[i])
 
-    #plt.plot(eeg_instants, eeg_signal[:, 1])
-    #plt.scatter(erds_time, erds_values[:, 0])
-    #plt.plot(eeg_instants, marker_interpol)
-    #plt.scatter(marker_instants, marker_values[1:])
 
     # find timespans when left/ right times with feedback
-
+    
     fb_times_l = np.zeros((marker_ids.count(['Start_of_Trial_l']), 2))
     fb_times_r = np.zeros((marker_ids.count(['Start_of_Trial_r']), 2))
     i, j = 0, 0
@@ -226,45 +305,91 @@ if __name__ == "__main__":
             ref_times_r[j, 1] = eeg_instants[index]
             j += 1
 
-    print("Debug")
-
+    #"""
     # ==============================================================================
-    # ERDS and LDA from ONLINE calculated results
+    # ERDS from ONLINE calculated results
     # ==============================================================================
+    erds_l_clean = np.zeros((len(fb_times_l[:,0]),3600,7)) # [trial][timepoint][ROI1][ROI2]...
+    for trial in range(len(fb_times_l[:,0])):
+        cnt = 0
+        for index, t in enumerate(erds_time):
+            if fb_times_l[trial][0] <= t <= fb_times_l[trial][1]:
+                erds_l_clean[trial][cnt][0] = t
+                erds_l_clean[trial][cnt][1:7] = erds_values[index]
+                cnt += 1
 
-    # calculate ERDS per task
+    erds_r_clean = np.zeros((len(fb_times_r[:,0]),3600,7)) # [trial][timepoint][ROI1][ROI2]...
+    for trial in range(len(fb_times_r[:,0])):
+        cnt = 0
+        for index, t in enumerate(erds_time):
+            if fb_times_r[trial][0] <= t <= fb_times_r[trial][1]:
+                erds_r_clean[trial][cnt][0] = t
+                erds_r_clean[trial][cnt][1:7] = erds_values[index]
+                cnt += 1
 
-    mean_erds_l = np.zeros((len(fb_times_l), 6))
-    for task in range(len(fb_times_l)): # alle linken tasks
-        erds_per_task = [erds_values[i] for i in range(len(erds_time)) if
-                         fb_times_l[task][0] <= erds_time[i] <= fb_times_l[task][
-                             1]]  # finde alle erds werte die zwischen start und ende für diesen Trial liegen
-        erds_roi = []
-        for roi in range(6):  # iteration über rois
-            for sample in range(len(erds_per_task)): # jeder wert wird angefügt
-                erds_roi.append(erds_per_task[sample][roi])
-            mean_erds_l[task][roi] = np.mean(erds_roi)
+    # mark to remove zero-lines
+    filtered_erds_l_clean = remove_zero_lines(erds_l_clean)
+    filtered_erds_r_clean = remove_zero_lines(erds_r_clean)
 
-    mean_erds_r = np.zeros((len(fb_times_r), 6))
-    for task in range(len(fb_times_r)):  # alle rechten tasks
-        erds_per_task = [erds_values[i] for i in range(len(erds_time)) if
-                         fb_times_r[task][0] <= erds_time[i] <= fb_times_r[task][
-                             1]]  # finde alle erds werte die zwischen start und ende für diesen Trial liegen
-        erds_roi = []
-        for roi in range(6):  # iteration über rois
-            for sample in range(len(erds_per_task)):  # jeder wert wird angefügt
-                erds_roi.append(erds_per_task[sample][roi])
-            mean_erds_r[task][roi] = np.mean(erds_roi)
-            erds_roi = [] #clear for next roi
 
-    print("Debug")
-    #'''
-    for i in range(6): # zeigt mittleren erds wert pro task und pro ROI
-        plt.plot(range(len(fb_times_l)), mean_erds_l[:, i])
-        plt.plot(range(len(fb_times_r)), mean_erds_r[:, i])
+    # calculate mean ERDS per task and ROI
+    avg_erds_l = np.zeros((len(fb_times_l),6))
+    avg_times_l = np.zeros(len(fb_times_l))
+    for trial in range(filtered_erds_l_clean.shape[0]):
+        trial_data = filtered_erds_l_clean[trial]
+        for roi in range(6):
+            avg_erds_l[trial,roi] = np.mean(trial_data[:, roi+1])
+            avg_times_l[trial] = trial_data[-1, 0]
+
+    avg_erds_r = np.zeros((len(fb_times_r),6))
+    avg_times_r = np.zeros(len(fb_times_r))
+    for trial in range(filtered_erds_r_clean.shape[0]):
+        trial_data = filtered_erds_r_clean[trial]
+        for roi in range(6):
+            avg_erds_r[trial,roi] = np.mean(trial_data[:, roi+1])
+            avg_times_r[trial] = trial_data[-1, 0]
+
+    '''
+    # plotting
+    # plot online calculated ERDS
+    roi_color = ['b', 'g', 'r', 'c', 'm', 'y']
+    roi_legend = ['F3', 'F4', 'C3', 'C4', 'P3', 'P4']
+    plt.figure(figsize=(10, 5))
+    for trial in range(len(erds_l_clean)):
+        trial_data = filtered_erds_l_clean[trial]
+        time_l = trial_data[:, 0]
+        for roi in range(6):
+            value_l = trial_data[:, roi+1]
+            if trial == 0:
+                plt.plot(time_l, value_l, color=roi_color[roi], label=roi_legend[roi])
+            else:
+                plt.plot(time_l, value_l, color=roi_color[roi])
+            plt.axvline(x=fb_times_l[trial,0], color='k', linestyle='dotted')
+            plt.axvline(x=fb_times_l[trial,1], color='k', linestyle='dotted')
+            plt.scatter(avg_times_l[trial], avg_erds_l[trial, roi], color=roi_color[roi], marker='<')
+
+    for trial in range(len(erds_r_clean)):
+        trial_data = filtered_erds_r_clean[trial]
+        time_r = trial_data[:, 0]
+        for roi in range(6):
+            value_r = trial_data[:, roi+1]
+            plt.plot(time_r, value_r, color=roi_color[roi])
+            plt.axvline(x=fb_times_r[trial,0], color='k', linestyle='dotted')
+            plt.axvline(x=fb_times_r[trial,1], color='k', linestyle='dotted')
+            plt.scatter(avg_times_r[trial], avg_erds_r[trial, roi], color=roi_color[roi], marker='<')
+    plt.title("Online calucated ERDS Values \n" + config_file_path)
+    plt.legend(title='ROIs', loc='best', ncols=2)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+    plt.savefig(result_path + timestamp + '_online_ERDS')
     plt.show()
-    #'''
-    # ------ bis hier hin bin ich momentan zufrieden! ------
+    '''
+    #"""
+
+    print("Debug")
+
+    # ==============================================================================
+    # LDA from ONLINE calculated results
+    # ==============================================================================
     """
     # LDA classification
     '''
@@ -310,24 +435,44 @@ if __name__ == "__main__":
     '''
     """
 
-    """
-    # ERROR: CAN BE DISCHARTED - RESULTS ARE SHIT!
+    #"""
+    #
     # ==============================================================================
     # ERDS and LDA from OFFLINE calculated results
     # ==============================================================================
     # calculate mean ref per task
+    '''
+    eeg_raw = eeg_signal[:,[2,29,7,24,13,19]] # roi channels F3, F4, C3, C4, P3, P4
 
-    eeg_roi_raw = eeg_signal[:,[2,29,7,24,13,19]] # roi channels F3, F4, C3, C4, P3, P4
     #eeg_roi_filt = butter_bandpass_filter(eeg_roi_raw, fs=sample_rate/2, fpass=(9,11) ,fstop=(7.5, 12))
     #eeg_roi = np.square(eeg_roi_filt)
-    s_rate_half = sample_rate/2
+    nyquist = sample_rate/2
     fpass = (9, 11)
     fstop = (7.5, 12)
+    low = 9/nyquist
+    high = 11/nyquist
+
+    sos = butter(12, [low, high], btype='bandpass', output='sos')
+    eeg_filt = sosfilt(sos, eeg_raw)
+    eeg_filt_roi =eeg_filt[:,[2,29,7,24,13,19]]
+    eeg_roi = np.square(eeg_filt_roi)
+    '''
+    ############### Versuch wie Online #########################
+    eeg_raw = eeg_signal[:,
+              [1, 2, 3, 5, 6, 7, 8, 10, 11, 12, 13, 14, 18, 19, 21, 22, 23, 24, 25, 27, 28, 29, 30]]  # enabled channels
+    s_rate_half = sample_rate/2
+    fpass_erds = [freq / s_rate_half for freq in[7.5, 12]]
+    fstop_erds = [freq / s_rate_half for freq in[9, 11]]
+    bp_erds = Bandpass(order=12, fstop=fstop_erds, fpass=fpass_erds, n=len(eeg_raw))
+
+
+    '''
     fstop_erds = [freq / s_rate_half for freq in fstop]
     fpass_erds = [freq / s_rate_half for freq in fpass]
     bp = bandpass.Bandpass(order=12, fstop=fstop_erds, fpass=fpass_erds, n=len(eeg_roi_raw[1]))
     eeg_roi_filt = bp.bandpass_filter(eeg_roi_raw)
     eeg_roi = np.square(eeg_roi_filt)
+    '''
     '''
     mean_ref_l = np.zeros((len(ref_times_l), 6))
         for task in range(len(ref_times_l)): # all left tasks
@@ -346,6 +491,158 @@ if __name__ == "__main__":
                          fb_times_l[task][0] <= eeg_instants[i] <= fb_times_l[task][
                              1]]  # find all eeg values lying between start and end for this task
         act_l.append(fb_per_task)
+    '''
+    # compute ERDS for every sample in feedback period
+    # LEFT
+    eeg_roi = eeg_raw[:,[1, 21, 5, 17, 10, 12]]
+    ref_samples_l = np.zeros((len(fb_times_l[:,0]),1600,7)) # [trial][timepoint][ROI1][ROI2]...
+    act_samples_l = np.zeros((len(fb_times_l[:,0]),3600,7)) # [trial][timepoint][ROI1][ROI2]...
+    avg_ref_l = np.zeros((len(fb_times_l[:,0]),6)) #[trial][ROI]
+    for trial in range(len(fb_times_l[:,0])):
+        #eeg_data = eeg_roi[:,3]
+        cnt_ref = 0
+        cnt_act = 0
+        for index, t in enumerate(eeg_instants):
+            if ref_times_l[trial][0] <= t <= ref_times_l[trial][1]:
+                #ref_samples_l.append(eeg_data[index])
+                ref_samples_l[trial][cnt_ref][0] = t # time
+                ref_samples_l[trial][cnt_ref][1:7] = eeg_roi[index]
+                cnt_ref += 1
+            if fb_times_l[trial][0] <= t <= fb_times_l[trial][1]:
+                act_samples_l[trial][cnt_act][0] = t # time
+                act_samples_l[trial][cnt_act][1:7] = eeg_roi[index]
+                cnt_act += 1
+        for roi in range(6):
+            avg_ref_l[trial][roi] = np.mean(ref_samples_l[trial][:,roi+1])
+    # mark to remove zero-lines
+    ref_samples_l_clean = remove_zero_lines(ref_samples_l)
+    act_samples_l_clean = remove_zero_lines(act_samples_l)
+
+    erds_value_l = np.zeros((len(fb_times_l[:,0]),3600,7))
+    for trial in range(len(fb_times_l[:,0])):
+        for index, sample in enumerate(act_samples_l_clean[trial]):
+            erds_value_l[trial][index][0] = sample[0] #time
+            for roi in range(6):
+                erds_value_l[trial][index][roi+1] = -(avg_ref_l[trial][roi]-sample[roi+1])/avg_ref_l[trial][roi]
+    erds_value_l_clean = remove_zero_lines(erds_value_l)
+
+    # RIGHT
+    ref_samples_r = np.zeros((len(fb_times_r[:,0]),1600,7)) # [trial][timepoint][ROI1][ROI2]...
+    act_samples_r = np.zeros((len(fb_times_r[:,0]),3600,7)) # [trial][timepoint][ROI1][ROI2]...
+    avg_ref_r = np.zeros((len(fb_times_r[:,0]),6)) #[trial][ROI]
+    for trial in range(len(fb_times_r[:,0])):
+        #eeg_data = eeg_roi[:,3]
+        cnt_ref = 0
+        cnt_act = 0
+        for index, t in enumerate(eeg_instants):
+            if ref_times_r[trial][0] <= t <= ref_times_r[trial][1]:
+                #ref_samples_l.append(eeg_data[index])
+                ref_samples_r[trial][cnt_ref][0] = t # time
+                ref_samples_r[trial][cnt_ref][1:7] = eeg_roi[index]
+                cnt_ref += 1
+            if fb_times_r[trial][0] <= t <= fb_times_r[trial][1]:
+                act_samples_r[trial][cnt_act][0] = t # time
+                act_samples_r[trial][cnt_act][1:7] = eeg_roi[index]
+                cnt_act += 1
+        for roi in range(6):
+            avg_ref_r[trial][roi] = np.mean(ref_samples_r[trial][:,roi+1])
+    # mark to remove zero-lines
+    ref_samples_r_clean = remove_zero_lines(ref_samples_r)
+    act_samples_r_clean = remove_zero_lines(act_samples_r)
+
+    erds_value_r = np.zeros((len(fb_times_r[:,0]),3600,7))
+    for trial in range(len(fb_times_r[:,0])):
+        for index, sample in enumerate(act_samples_r_clean[trial]):
+            erds_value_r[trial][index][0] = sample[0] #time
+            for roi in range(6):
+                erds_value_r[trial][index][roi+1] = -(avg_ref_r[trial][roi]-sample[roi+1])/avg_ref_r[trial][roi]
+    erds_value_r_clean = remove_zero_lines(erds_value_r)
+
+
+    roi_color = ['b', 'g', 'r', 'c', 'm', 'y']
+    roi_legend = ['F3', 'F4', 'C3', 'C4', 'P3', 'P4']
+    '''
+    # plot eeg spans for calculating ERDS
+    plt.figure(figsize=(10, 5))
+    for trial in range(len(ref_times_l)):
+        trial_data = ref_samples_l_clean[trial]
+        time_l = trial_data[:, 0]
+        for roi in range(6):
+            value_l = trial_data[:, roi + 1]
+            if trial == 0:
+                plt.plot(time_l, value_l, color=roi_color[roi], label=roi_legend[roi])
+            else:
+                plt.plot(time_l, value_l, color=roi_color[roi])
+            plt.axvline(x=ref_times_l[trial, 0], color='k', linestyle='dotted')
+            plt.axvline(x=ref_times_l[trial, 1], color='k', linestyle='dotted')
+            # plt.scatter(avg_times_l[trial], avg_erds_l[trial, roi], color=roi_color[roi], marker='<')
+    for trial in range(len(fb_times_l)):
+        trial_data = act_samples_l_clean[trial]
+        time_l = trial_data[:, 0]
+        for roi in range(6):
+            value_l = trial_data[:, roi + 1]
+            if trial == 0:
+                plt.plot(time_l, value_l, color=roi_color[roi], label=roi_legend[roi])
+            else:
+                plt.plot(time_l, value_l, color=roi_color[roi])
+            plt.axvline(x=fb_times_l[trial, 0], color='k', linestyle='dotted')
+            plt.axvline(x=fb_times_l[trial, 1], color='k', linestyle='dotted')
+            # plt.scatter(avg_times_l[trial], avg_erds_l[trial, roi], color=roi_color[roi], marker='<')
+    plt.title('EEG data in state = reference and state = feedback')
+    plt.legend()
+    #plt.show()
+    '''
+
+    '''
+    # plot offline calculated ERDS
+    plt.figure(figsize=(10, 5))
+    for trial in range(len(fb_times_l)):
+        trial_data = erds_value_l_clean[trial]
+        time_l = trial_data[:, 0]
+        for roi in range(6):
+            value_l = trial_data[:, roi+1]
+            if trial == 0:
+                plt.plot(time_l, value_l, color=roi_color[roi], label=roi_legend[roi])
+            else:
+                plt.plot(time_l, value_l, color=roi_color[roi])
+            plt.axvline(x=fb_times_l[trial,0], color='k', linestyle='dotted')
+            plt.axvline(x=fb_times_l[trial,1], color='k', linestyle='dotted')
+            #plt.scatter(avg_times_l[trial], avg_erds_l[trial, roi], color=roi_color[roi], marker='<')
+    plt.title('ERDS in state = feedback')
+    plt.legend()
+    plt.show()
+    '''
+
+    # Compare online/offline ERDS
+    plt.figure(figsize=(15, 5))
+    #for trial in range(len(fb_times_l)):
+    for trial in range(1):
+        trial_data = erds_value_r_clean[trial]
+        time_r = trial_data[:, 0]
+        #for roi in range(1): # hier nur ein ROI!
+        roi=4 # C4
+        value_r = trial_data[:, roi] #+1]
+        plt.plot(time_r, value_r, color='b', label='offline calculated ERDS')
+        plt.axvline(x=fb_times_r[trial, 0], color='k', linestyle='dotted')
+        plt.axvline(x=fb_times_r[trial, 1], color='k', linestyle='dotted')
+        # plt.scatter(avg_times_l[trial], avg_erds_l[trial, roi], color=roi_color[roi], marker='<')
+    #for trial in range(len(erds_l_clean)):
+    for trial in range(1):
+        trial_data = filtered_erds_r_clean[trial]
+        time_r = trial_data[:, 0]
+        #for roi in range(1):
+        roi = 4 #C4
+        value_r = trial_data[:, roi] #+1]
+        plt.plot(time_r, value_r, color='r', label='online calculated ERDS')
+        plt.axvline(x=fb_times_r[trial,0], color='k', linestyle='dotted')
+        plt.axvline(x=fb_times_r[trial,1], color='k', linestyle='dotted')
+        plt.scatter(avg_times_r[trial], avg_erds_r[trial, roi], color=roi_color[roi], marker='<')
+    plt.title('ERDS in state = feedback')
+    plt.legend()
+    plt.show()
+
+
+
     '''
     # Compute mean reference EEG for each ROI
     mean_ref_l = []
@@ -398,4 +695,4 @@ if __name__ == "__main__":
     np.savetxt(filename_off_r, mean_erds_calc_r_, delimiter=',')
 
     print("Created bullshit!")
-    """
+    '''

@@ -203,7 +203,7 @@ def plot_erds_values(data, title, name, s_rate, n_cue, erds_mode, cl, dir_plots,
     plt.show()
 
 def erds_values_plot_preparation(subject_data_path, signal):
-    my_files = glob.glob(subject_data_path + '/online_streams_mat/erds_*.mat')
+    my_files = glob.glob(subject_data_path + '/online_streams_mat/erds_run2*.mat')
     n_samples_task = signal.n_samples_task
 
     cnt = 0
@@ -212,8 +212,12 @@ def erds_values_plot_preparation(subject_data_path, signal):
         data_erds = scipy.io.loadmat(f)['erds'].T
 
         data_epoched, n_samples, labels = extract_epochs(data_erds, n_samples_task)
-        data_1 = data_epoched[np.where(labels == 0)[0]]
-        data_2 = data_epoched[np.where(labels == 1)[0]]
+        data_1 = data_epoched[np.where(labels == 0)[0]]  # left
+        data_2 = data_epoched[np.where(labels == 1)[0]]  # right
+
+        #plt.scatter(range(0, len(data_1[0][3])), data_1[0][3])  # right, first epoch, roi3 = C4
+        plt.plot(range(0, len(data_2[0][3])), data_2[0][3], 'g-') #right, first epoch, roi3 = C4
+        plt.show()
 
         #plot_erds_values(np.mean(data_1, axis=0), 'ERDS - left hand', name, signal.sample_rate, signal.n_cue, signal.erds_mode, cl='l', dir_plots=signal.dir_plots, n_ref=signal.n_ref)
         #plot_erds_values(np.mean(data_2, axis=0), 'ERDS - right hand', name, signal.sample_rate, signal.n_cue, signal.erds_mode, cl='r', dir_plots=signal.dir_plots, n_ref=signal.n_ref)

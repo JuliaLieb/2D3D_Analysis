@@ -147,7 +147,7 @@ if __name__ == "__main__":
     subject_list = ['S14']
     subj = subject_list[0]
     ses_ix = session_list[0]
-    run = 1
+    run = 2
 
     mon_me = [0] * len(subject_list)
     mon_mi = [2, 1, 1, 2, 1, 2, 2, 1, 2, 1, 1, 2, 2, 1, 2, 1, 2]
@@ -164,13 +164,13 @@ if __name__ == "__main__":
     create_epoch_files = False  # raw or preprocessed eeg data cut into epochs and saved
     create_mean_erds_results = False  # calculate results for statistical analysis
     save_xdf_to_mat = False  # saves EEG, ERDS and LDA as .mat files
-    calc_online_ERDS = False  # calculates results of oline calculated ERDS
+    calc_online_ERDS = True  # calculates results of oline calculated ERDS
     calc_offline_online_ERDS = False  # reproduce online calculated results of ERDS
     plot_ERDS_maps = False  # plots ERDS maps from EEG
     calc_acc = False  # computes average of online calculated accuracy per run
     plot_comparison = False
     preprocess_raw = False
-    reading_sig = True
+    reading_sig = False
     # -------------------------------------
     #######################################
     # -------------------------------------
@@ -302,6 +302,8 @@ if __name__ == "__main__":
         np.savetxt(file_l, offline_erds_trial_l, delimiter=',')
         np.savetxt(file_r, offline_erds_trial_r, delimiter=',')
         print("done")
+
+
 
     if plot_ERDS_maps:
         '''
