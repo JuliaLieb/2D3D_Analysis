@@ -165,10 +165,10 @@ if __name__ == "__main__":
     create_mean_erds_results = False  # calculate results for statistical analysis
     save_xdf_to_mat = False  # saves EEG, ERDS and LDA as .mat files
     calc_online_ERDS = True  # calculates results of oline calculated ERDS
-    calc_offline_online_ERDS = False  # reproduce online calculated results of ERDS
+    calc_offline_online_ERDS = True  # reproduce online calculated results of ERDS
     plot_ERDS_maps = False  # plots ERDS maps from EEG
     calc_acc = False  # computes average of online calculated accuracy per run
-    plot_comparison = False
+    plot_comparison = True
     preprocess_raw = False
     reading_sig = False
     # -------------------------------------
