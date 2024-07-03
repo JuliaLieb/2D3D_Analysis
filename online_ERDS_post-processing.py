@@ -367,6 +367,7 @@ if __name__ == "__main__":
     #
 
     eeg_raw = eeg_signal[:, enabled_ch]
+
     ####### TESTING Data
     '''
     eeg_start = np.ones((2314, np.size(eeg_raw, axis=1))) # vor erster Ref
@@ -387,29 +388,59 @@ if __name__ == "__main__":
     fstop_erds = [freq / s_rate_half for freq in [7.5, 12]]
     bp_erds = Bandpass(order=12, fstop=fstop_erds, fpass=fpass_erds, n=eeg_raw.shape[1])
 
-    # ganzes EEG vorfiltern - funktionier nicht mehr - WARUM?!
-    ''' 
-    eeg_filt = np.zeros(eeg_raw.shape)
+    # ganzes EEG vorfiltern
+    '''
+    eeg_filt_all = np.zeros(eeg_raw.shape)
     for index, t in enumerate(eeg_instants):
         sample = eeg_raw[index, :]
         sample_reshaped = sample[np.newaxis, :]
         sample_filt = bp_erds.bandpass_filter(sample_reshaped)
-        eeg_filt[index,:] = sample_filt
-    eeg_raw = eeg_filt
+        eeg_filt_all[index,:] = sample_filt
+    #eeg_raw = eeg_filt_all
     '''
 
-    # nur Status = Ref (Marker = 4) vorfiltern - so gut wie kein einfluss
-    ''' 
-    eeg_filt = np.zeros(eeg_raw.shape)
+    # nur Status = Start (Marker = 4) vorfiltern - bei data_ref und data_a samples dann zusätzlich filtern
+    '''
+    eeg_filt_stat4 = np.zeros(eeg_raw.shape)
     for index, t in enumerate(eeg_instants):
         sample = eeg_raw[index, :]
         sample_reshaped = sample[np.newaxis, :]
         if marker_interpol[index] == 4:  # filter only status = Start
             sample_filt = bp_erds.bandpass_filter(sample_reshaped)
-            eeg_filt[index, :] = sample_filt
+            eeg_filt_stat4[index, :] = sample_filt
         else:
-            eeg_filt[index, :] = sample
-    eeg_raw = eeg_filt
+            eeg_filt_stat4[index, :] = sample
+    #eeg_raw = eeg_filt_stat4
+    '''
+
+    # nur Status = Start, Ref, FB (Marker = 4, 11, 12, 31, 32) vorfiltern - so gut wie kein einfluss
+    #'''
+    eeg_filt_stat = np.zeros(eeg_raw.shape)
+    for index, t in enumerate(eeg_instants):
+        sample = eeg_raw[index, :]
+        sample_reshaped = sample[np.newaxis, :]
+        if marker_interpol[index] in [4, 11, 12, 31, 32]:  # filter only status = Start, Ref, Feedback
+            sample_filt = bp_erds.bandpass_filter(sample_reshaped)
+            eeg_filt_stat[index, :] = sample_filt
+        else:
+            eeg_filt_stat[index, :] = sample
+    eeg_raw = eeg_filt_stat
+    #'''
+
+    '''
+    plt.figure(figsize=(12, 10))
+    plt.plot(eeg_instants, eeg_raw[:,1], color='r')
+    #plt.plot(eeg_instants, eeg_filt_all[:, 1], color='b')
+    #plt.plot(eeg_instants, eeg_filt_stat4[:, 1], color='g')
+    plt.plot(eeg_instants, eeg_filt_stat[:, 1], color='c')
+    for trial in range(len(ref_times)): # left ref
+        plt.axvline(x=ref_times[trial,0], color='grey', linestyle='dotted')
+        plt.axvline(x=ref_times[trial,1], color='grey', linestyle='dotted')
+    for trial in range(len(fb_times)):  # left ref
+        plt.axvline(x=fb_times[trial, 0], color='k', linestyle='dotted')
+        plt.axvline(x=fb_times[trial, 1], color='k', linestyle='dotted')
+    plt.show()
+    sys.exit()
     '''
 
     # eeg data for reference period of every task # left
@@ -424,8 +455,8 @@ if __name__ == "__main__":
             if ref_times[trial][0] <= t <= ref_times[trial][1]:
                 sample = eeg_raw[index,:]
                 sample_reshaped = sample[np.newaxis,:]
-                sample_filt = bp_erds.bandpass_filter(sample_reshaped)
-                #sample_filt = sample_reshaped # TEST
+                #sample_filt = bp_erds.bandpass_filter(sample_reshaped)
+                sample_filt = sample_reshaped # TEST
                 data_ref[trial, cnt, 0] = t
                 data_ref[trial, cnt, 1:] = np.square(sample_filt)
                 cur_ref = np.append(cur_ref, np.square(sample_filt), axis=0)
@@ -444,8 +475,8 @@ if __name__ == "__main__":
                 sample = eeg_raw[index, :]
                 sample_reshaped = sample[np.newaxis, :]
                 erds_ref = data_ref_mean[trial]
-                sample_filt = bp_erds.bandpass_filter(sample_reshaped)
-                #sample_filt = sample_reshaped # TEST
+                #sample_filt = bp_erds.bandpass_filter(sample_reshaped)
+                sample_filt = sample_reshaped # TEST
                 erds_a = np.square(sample_filt)
                 data_a[trial, cnt, 0] = t
                 data_a[trial,cnt,1:] = erds_a
@@ -453,10 +484,22 @@ if __name__ == "__main__":
                 erds_offline_ch[trial, cnt, 0] = t
                 erds_offline_ch[trial, cnt, 1:] = cur_erds
                 cnt+=1
+
+
+    ch_to_select = list(np.add(roi_ch,1))
+    ch_to_select.insert(0, 0)
+    erds_offline_roi = erds_offline_ch[:, :, ch_to_select]
+
     data_a = remove_zero_lines(data_a)
     erds_offline_ch = remove_zero_lines(erds_offline_ch)
+    erds_offline_roi = remove_zero_lines(erds_offline_roi)
 
-    print('Debug ERDS calc finished')
+    # calculate mean ERDS per task and ROI
+    avg_erds_offline = np.zeros((len(fb_times), 6))
+    for trial in range(erds_offline_roi.shape[0]):
+        trial_data = erds_offline_roi[trial]
+        for roi in range(6):
+            avg_erds_offline[trial, roi] = np.mean(trial_data[:, roi+1])
 
     # plotting
     # plot eeg signals for calculating ERDS
@@ -490,6 +533,7 @@ if __name__ == "__main__":
     # plotting
     # plot offline calculated ERDS values
     '''
+    #roi_ch_names = ['C4'] # TST
     plt.figure(figsize=(10, 5))
     for trial in range(len(erds_offline_ch)):  # left
         trial_data = erds_offline_ch[trial]
@@ -508,6 +552,7 @@ if __name__ == "__main__":
     '''
 
     # plot comparison online - offline ERDS
+    """
     trial = 8
     trial_cl = fb_times[trial,2] # 1 = L, 2 = R
     ch_comp = ['C4']
@@ -519,8 +564,32 @@ if __name__ == "__main__":
     on_time = erds_online[trial][:, 0]
     off_erds = erds_offline_ch[trial]
     off_time = erds_offline_ch[trial][:, 0]
-    plt.plot(off_time, off_erds[:, ch_ix + 1], label='offline')
-    plt.plot(on_time, on_erds[:, ch_roi + 1], label='online')
+    plt.plot(off_time, off_erds[:, ch_ix + 1], label='offline', color='r')
+    plt.plot(on_time, on_erds[:, ch_roi + 1], label='online', color='b')
     plt.legend()
-    plt.title(f"Comparison online / offline calculated ERDS:\n Trial: {trial},  Class: {trial_cl} \n" + config_file_path)
+    plt.title(f"Comparison online / offline calculated ERDS:\n {subject_id}, Session {n_session}, Run {n_run}, "
+              f"Trial {trial+1},  Class {trial_cl} " )
+    #plt.show()
+    """
+    """
+    plt.figure(figsize=(10, 5))
+    for trial in range(len(fb_times)):
+        on_erds = erds_online[trial]
+        on_time = erds_online[trial][:, 0]
+        off_erds = erds_offline_ch[trial]
+        off_time = erds_offline_ch[trial][:, 0]
+        plt.plot(off_time, off_erds[:, ch_ix + 1], label='offline', color='r')
+        plt.plot(on_time, on_erds[:, ch_roi + 1], label='online', color='b')
+    #plt.legend()
+    plt.title("Comparison online / offline calculated ERDS:\n" + config_file_path)
     plt.show()
+    """
+    plt.figure(figsize=(10, 5))
+    plt.plot(avg_erds_online[:,4], label='online', color='r')
+    plt.plot(avg_erds_offline[:,4], label='online', color='g')
+    plt.legend()
+    plt.title("Comparison online / offline calculated average ERDS per trial:\n" + config_file_path)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+    plt.savefig(result_path + timestamp + '_comparison online offline average per task')
+    plt.show()
+
