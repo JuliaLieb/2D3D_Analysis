@@ -133,12 +133,14 @@ if __name__ == "__main__":
     n_samples_trial = n_ref + n_samples_task
 
     # Channels & ROIs
-    enabled_ch = [1, 2, 3, 5, 6, 7, 8, 10, 11, 12, 13, 14, 18, 19, 21, 22, 23, 24, 25, 27, 28, 29, 30]
-    enabled_ch_names = ['Fz', 'F3', 'F7', 'FC5', 'FC1', 'C3', 'T7', 'CP5', 'CP1', 'Pz', 'P3', 'P7', 'P4', 'P8', 'CP6',
-                       'CP2', 'Cz', 'C4', 'T8', 'FC6', 'FC2', 'F4', 'F8']
-    roi_ch = [1, 21, 5, 17, 10, 12]
-    roi_ch_names = ['F3', 'F4', 'C3', 'C4', 'P3', 'P4']
-    roi_color = ['b', 'g', 'r', 'c', 'm', 'y']
+    channel_dict = config['eeg-settings']['channels']
+    enabled_ch_names = [name for name, settings in channel_dict.items() if settings['enabled']]
+    enabled_ch = np.subtract([settings['id'] for name, settings in channel_dict.items() if settings['enabled']], 1) # Python starts at 0
+
+    roi_ch_nr = config['feedback-model-settings']['erds']['single-mode-channels']
+    roi_dict = {settings['id']: name for name, settings in channel_dict.items()}
+    roi_ch_names = [roi_dict[id_] for id_ in roi_ch_nr]
+    roi_enabled_ix = [enabled_ch_names.index(ch) for ch in roi_ch_names if ch in enabled_ch_names]
 
     # XDF
     streams, fileheader = pyxdf.load_xdf(xdf_file_path)
@@ -364,31 +366,14 @@ if __name__ == "__main__":
     # ERDS and LDA from OFFLINE calculated results
     # ==============================================================================
 
-    #
-
     eeg_raw = eeg_signal[:, enabled_ch]
-
-    ####### TESTING Data
-    '''
-    eeg_start = np.ones((2314, np.size(eeg_raw, axis=1))) # vor erster Ref
-    eeg_ref = np.ones((1500, np.size(eeg_raw, axis=1)))
-    eeg_cue = np.ones((625, np.size(eeg_raw, axis=1)))
-    eeg_fb = np.ones((3500, np.size(eeg_raw, axis=1))) *2
-    eeg_trial = np.concatenate((eeg_ref, eeg_cue, eeg_fb), axis=0)
-    eeg_test = np.concatenate((eeg_start, eeg_trial, eeg_trial, eeg_trial, eeg_trial, eeg_trial, eeg_trial, eeg_trial,
-                             eeg_trial, eeg_trial, eeg_trial, eeg_trial, eeg_trial, eeg_trial, eeg_trial, eeg_trial,
-                             eeg_trial, eeg_trial, eeg_trial, eeg_trial, eeg_trial, eeg_start, eeg_start))
-    eeg_raw = eeg_test
-    eeg_instants = eeg_instants[:len(eeg_raw)]
-    '''
-    #######################
 
     s_rate_half = sample_rate/2
     fpass_erds = [freq / s_rate_half for freq in [9, 11]]
     fstop_erds = [freq / s_rate_half for freq in [7.5, 12]]
     bp_erds = Bandpass(order=12, fstop=fstop_erds, fpass=fpass_erds, n=eeg_raw.shape[1])
 
-    # ganzes EEG vorfiltern
+    #ganzes EEG vorfiltern
     '''
     eeg_filt_all = np.zeros(eeg_raw.shape)
     for index, t in enumerate(eeg_instants):
@@ -396,7 +381,7 @@ if __name__ == "__main__":
         sample_reshaped = sample[np.newaxis, :]
         sample_filt = bp_erds.bandpass_filter(sample_reshaped)
         eeg_filt_all[index,:] = sample_filt
-    #eeg_raw = eeg_filt_all
+    eeg_raw = eeg_filt_all
     '''
 
     # nur Status = Start (Marker = 4) vorfiltern - bei data_ref und data_a samples dann zusätzlich filtern
@@ -413,7 +398,7 @@ if __name__ == "__main__":
     #eeg_raw = eeg_filt_stat4
     '''
 
-    # nur Status = Start, Ref, FB (Marker = 4, 11, 12, 31, 32) vorfiltern - so gut wie kein einfluss
+    # nur Status = Start, Ref, FB (Marker = 4, 11, 12, 31, 32) filtern
     #'''
     eeg_filt_stat = np.zeros(eeg_raw.shape)
     for index, t in enumerate(eeg_instants):
@@ -484,9 +469,7 @@ if __name__ == "__main__":
                 erds_offline_ch[trial, cnt, 0] = t
                 erds_offline_ch[trial, cnt, 1:] = cur_erds
                 cnt+=1
-
-
-    ch_to_select = list(np.add(roi_ch,1))
+    ch_to_select = list(np.add(roi_enabled_ix,1))
     ch_to_select.insert(0, 0)
     erds_offline_roi = erds_offline_ch[:, :, ch_to_select]
 
