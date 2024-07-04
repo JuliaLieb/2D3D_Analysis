@@ -953,6 +953,16 @@ class Input_Data:
         self.plot_erds_maps(preproc_data=False, tfr_mode=True)
         self.plot_erds_maps(preproc_data=True, tfr_mode=True)
 
+    def run_preprocessing_to_fif(self):
+        self.create_raw()
+        self.raw_filt = self.raw.copy()
+        self.raw_spatial_filtering()
+        self.raw_time_filtering()
+        self.raw_ica()
+
+        self.raw_filt.save(self.dir_preproc + '/run' + str(self.n_run) + '-' + '_preproc-raw.fif', overwrite=True)
+        print(f"Preprocessed raw data saved to {self.dir_preproc}/run{str(self.n_run)}")
+
 
 
 

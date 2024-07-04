@@ -107,6 +107,7 @@ if __name__ == "__main__":
 
     config_file_path = "C:/2D3D_Analysis/Data/S14-ses0/CONFIG_S14_run2_ME_2D.json"
     xdf_file_path = "C:/2D3D_Analysis/Data/S14-ses0/S14_run2_ME_2D.xdf"
+    preproc_file_path = "C:/2D3D_Analysis/Data/S14-ses0/preproc_raw/run2-_preproc-raw.fif"
 
     ###### Load files: infos and data
 
@@ -194,6 +195,13 @@ if __name__ == "__main__":
     erds_values = erds['time_series']
     lda_time = lda['time_stamps']-time_zero
     lda_values = lda['time_series']
+
+    # preprocessed file
+    if os.path.exists(preproc_file_path):
+        signal_preproc = mne.io.read_raw_fif(preproc_file_path, preload=True)
+        eeg_preproc = signal_preproc.get_data().T
+    else:
+        print(f'File not found: {preproc_file_path}')
 
     ######## Manage markers
     marker_values = [] # marker as value - not str
@@ -366,7 +374,8 @@ if __name__ == "__main__":
     # ERDS and LDA from OFFLINE calculated results
     # ==============================================================================
 
-    eeg_raw = eeg_signal[:, enabled_ch]
+    #eeg_raw = eeg_signal[:, enabled_ch]
+    eeg_raw = eeg_preproc[:, enabled_ch] ######################################################## Preprocessed SIGNAL!
 
     s_rate_half = sample_rate/2
     fpass_erds = [freq / s_rate_half for freq in [9, 11]]
@@ -535,7 +544,7 @@ if __name__ == "__main__":
     '''
 
     # plot comparison online - offline ERDS
-    """
+    #"""
     trial = 8
     trial_cl = fb_times[trial,2] # 1 = L, 2 = R
     ch_comp = ['C4']
@@ -553,8 +562,8 @@ if __name__ == "__main__":
     plt.title(f"Comparison online / offline calculated ERDS:\n {subject_id}, Session {n_session}, Run {n_run}, "
               f"Trial {trial+1},  Class {trial_cl} " )
     #plt.show()
-    """
-    """
+    #"""
+    #"""
     plt.figure(figsize=(10, 5))
     for trial in range(len(fb_times)):
         on_erds = erds_online[trial]
@@ -565,8 +574,8 @@ if __name__ == "__main__":
         plt.plot(on_time, on_erds[:, ch_roi + 1], label='online', color='b')
     #plt.legend()
     plt.title("Comparison online / offline calculated ERDS:\n" + config_file_path)
-    plt.show()
-    """
+    #plt.show()
+    #"""
     plt.figure(figsize=(10, 5))
     plt.plot(avg_erds_online[:,4], label='online', color='r')
     plt.plot(avg_erds_offline[:,4], label='online', color='g')

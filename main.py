@@ -31,6 +31,10 @@ def signal_reading_preprocesiing(config_files, path):
         input_data = Input_Data(config, path)
         #input_data.run_raw() # raw data
         input_data.preprocess_raw()  # preprocessing raw data
+def signal_reading_preprocesiing_saving(config_files, path):
+    for config in config_files:
+        input_data = Input_Data(config, path)
+        input_data.run_preprocessing_to_fif()  # preprocessing raw data
 
 def combine_epochs(n_runs, path, task='r', sig='raw'):
     epochs = []
@@ -164,13 +168,14 @@ if __name__ == "__main__":
     create_epoch_files = False  # raw or preprocessed eeg data cut into epochs and saved
     create_mean_erds_results = False  # calculate results for statistical analysis
     save_xdf_to_mat = False  # saves EEG, ERDS and LDA as .mat files
-    calc_online_ERDS = True  # calculates results of oline calculated ERDS
-    calc_offline_online_ERDS = True  # reproduce online calculated results of ERDS
+    calc_online_ERDS = False  # calculates results of oline calculated ERDS
+    calc_offline_online_ERDS = False  # reproduce online calculated results of ERDS
     plot_ERDS_maps = False  # plots ERDS maps from EEG
     calc_acc = False  # computes average of online calculated accuracy per run
-    plot_comparison = True
+    plot_comparison = False
     preprocess_raw = False
     reading_sig = False
+    preproc_to_fif = True
     # -------------------------------------
     #######################################
     # -------------------------------------
@@ -367,4 +372,10 @@ if __name__ == "__main__":
     if reading_sig:
         subject_data_path, config_file_path, xdf_file_path = load_current_file(subj, ses_ix, run)
         signal_reading_preprocesiing([config_file_path], subject_data_path)
+
+    if preproc_to_fif:
+        subject_data_path, config_file_path, xdf_file_path = load_current_file(subj, ses_ix, run)
+        signal_reading_preprocesiing_saving([config_file_path], subject_data_path)
+
+
     print("All tasks completed!")
