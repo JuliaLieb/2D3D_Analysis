@@ -1,3 +1,4 @@
+# %%
 import os
 import sys
 
@@ -28,6 +29,7 @@ import SUB_plot_management, SUB_lda_management, SUB_erds_management, SUB_trial_m
 
 
 if __name__ == "__main__":
+    # %%
     cwd = os.getcwd()
     data_path = cwd + '/Data/'
     result_path = cwd + '/Results/'
@@ -37,7 +39,10 @@ if __name__ == "__main__":
     xdf_file_path = "C:/2D3D_Analysis/Data/S14-ses0/S14_run2_ME_2D.xdf"
     preproc_file_path = "C:/2D3D_Analysis/Data/S14-ses0/preproc_raw/run2-_preproc-raw.fif"
 
-    ###### Load files: infos and data ------------------------------------------------------------------------
+    # %%
+    # ==============================================================================
+    # Load files: infos and data
+    # ==============================================================================
 
     # CONFIG
     with open(config_file_path) as json_file:
@@ -130,6 +135,7 @@ if __name__ == "__main__":
     lda_time = lda['time_stamps']-time_zero
     lda_values = lda['time_series']
 
+    # %%
     # ==============================================================================
     # Find timespans of Reference and Feedback
     # ==============================================================================
@@ -142,10 +148,11 @@ if __name__ == "__main__":
     ref_times = SUB_trial_management.find_marker_times(n_trials, marker_dict['Reference'],
                                                       marker_interpol, eeg_instants)
 
+    # %%
     # ==============================================================================
     # LDA from ONLINE calculated results
     # ==============================================================================
-
+    """
     # get online calculated lda
     lda_online = SUB_lda_management.assess_lda_online(lda_values, lda_time, fb_times, n_fb)
 
@@ -165,9 +172,8 @@ if __name__ == "__main__":
     SUB_plot_management.plot_online_lda(lda_online, avg_task_lda_acc_online, fb_times, config_file_path)
     plt.savefig(result_path + timestamp + '_online_LDA_acc')
     plt.show()
-
-    sys.exit() # °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
-
+    """
+    # %%
     # ==============================================================================
     # ERDS from ONLINE calculated results
     # ==============================================================================
@@ -180,15 +186,14 @@ if __name__ == "__main__":
     for trial in range(erds_online.shape[0]):
         trial_data = erds_online[trial]
         for roi in range(n_roi):
-            avg_erds_online[trial, roi] = np.mean(trial_data[:, roi+1])
+            avg_erds_online[trial, roi] = np.mean(trial_data[:, roi+1])   # not seperated for left and right
 
     # plot online calculated ERDS
     #SUB_plot_management.plot_online_erds(erds_online, avg_erds_online, fb_times, roi_ch_names, config_file_path)
     #plt.savefig(result_path + timestamp + '_online_ERDS')
     #plt.show()
 
-
-
+    # %%
     # ==============================================================================
     # Load preprocessed EEG
     # ==============================================================================
@@ -200,6 +205,7 @@ if __name__ == "__main__":
         print(f'File not found: {preproc_file_path}')
     '''
 
+    # %%
     # ==============================================================================
     # Filter EEG
     # ==============================================================================
@@ -223,7 +229,7 @@ if __name__ == "__main__":
     eeg_raw = SUB_filtering.filter_per_status(eeg_raw, eeg_instants, bp_erds, marker_interpol,
                                               status=[4, 11, 12, 31, 32])
 
-
+    # %%
     # ==============================================================================
     # ERDS  from OFFLINE calculated results
     # ==============================================================================
@@ -242,6 +248,7 @@ if __name__ == "__main__":
         trial_data = erds_offline_roi[trial]
         for roi in range(6):
             avg_erds_offline[trial, roi] = np.mean(trial_data[:, roi+1])
+    avg_erds_offline_run = np.mean(avg_erds_offline, axis=0)   # not seperated for left and right
 
     # plot signals for offline calculating ERDS
     #SUB_plot_management.plot_signals_for_eeg_calculation(data_ref, data_a, ref_times, fb_times, config_file_path)
@@ -266,5 +273,11 @@ if __name__ == "__main__":
     #"""
 
     # plot comparison average online - offline ERDS
-    SUB_plot_management.plot_online_vs_offline_avg_erds(avg_erds_online, avg_erds_offline, fb_times, config_file_path)
+    #SUB_plot_management.plot_online_vs_offline_avg_erds(avg_erds_online, avg_erds_offline, fb_times, config_file_path)
     plt.show()
+
+    # calculate the values for ANOVA
+    erds_off_l, erds_off_r = SUB_erds_management.calc_avg_erds_per_class(erds_offline_roi, fb_times)
+    erds_on_l, erds_on_r = SUB_erds_management.calc_avg_erds_per_class(erds_online, fb_times)
+    print(erds_on_l, erds_on_r)
+    print(erds_off_l, erds_off_r)

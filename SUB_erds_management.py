@@ -151,6 +151,23 @@ def get_data_a_calc_erds(eeg, eeg_instants, fb_times, n_fb, data_ref_mean, roi_e
 
     return data_a, erds_offline_ch, erds_offline_roi
 
-#def plot_erds_maps():
+def calc_avg_erds_per_class(erds_data, fb_times):
+    """
+    Calculate the average ERDS values per class based on class labels in fb_times.
 
+    Parameters:
+    erds_data (ndarray): Array containing timing and ERDS data.
+    fb_times (ndarray): Array containing timing and class labels.
 
+    Returns:
+    tuple: A tuple containing:
+        - avg_cl_1 (ndarray): Average ERDS values for class 1 (left).
+        - avg_cl_2 (ndarray): Average ERDS values for class 2 (right).
+    """
+    data_cl_1 = erds_data[np.where(fb_times[:, 2] == 1)[0]]  # left
+    data_cl_2 = erds_data[np.where(fb_times[:, 2] == 2)[0]]  # right
+
+    avg_cl_1 = np.mean(np.concatenate(data_cl_1, axis=0), axis=0)
+    avg_cl_2 = np.mean(np.concatenate(data_cl_2, axis=0), axis=0)
+
+    return avg_cl_1[1:7], avg_cl_2[1:7]  # first column is timing

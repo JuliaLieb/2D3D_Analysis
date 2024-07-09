@@ -132,4 +132,3 @@ def find_marker_times(marker_amout, marker_value, marker_interpol, eeg_instants)
 
     return marker_times
 
-
