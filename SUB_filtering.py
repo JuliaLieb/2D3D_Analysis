@@ -67,6 +67,20 @@ class Bandpass:
         return y
 
 def filter_complete_eeg(eeg, eeg_instants, bp_filter):
+    """
+    Applies a bandpass filter to each sample of EEG data at specified instants.
+
+    Parameters:
+    eeg (ndarray): A 2D NumPy array of shape (n_samples, n_channels) containing EEG data, where each row represents a
+                    sample and each column represents a channel.
+    eeg_instants (ndarray): A 1D array or list containing the instants (time indices) at which the EEG samples
+                            are taken.
+    bp_filter (object): An object with a method `bandpass_filter` that takes a 2D NumPy array and returns a filtered
+                        2D NumPy array of the same shape.
+
+    Returns:
+    ndarray: A 2D NumPy array of shape (n_samples, n_channels) containing the bandpass-filtered EEG data.
+    """
     eeg_filt_all = np.zeros(eeg.shape)
     for index, t in enumerate(eeg_instants):
         sample = eeg[index, :][np.newaxis, :]
@@ -75,6 +89,24 @@ def filter_complete_eeg(eeg, eeg_instants, bp_filter):
     return eeg_filt_all
 
 def filter_per_status(eeg, eeg_instants, bp_filter, marker_interpol, status):
+    """
+    Applies a bandpass filter to each sample of EEG data at specified instants only if the sample's marker status
+    matches specified statuses.
+
+    Parameters:
+    eeg (ndarray): A 2D NumPy array of shape (n_samples, n_channels) containing EEG data, where each row represents
+                    a sample and each column represents a channel.
+    eeg_instants (ndarray): A 1D array or list containing the instants (time indices) at which the EEG samples
+                            are taken.
+    bp_filter (object): An object of class Bandpass with a method `bandpass_filter` that takes a 2D NumPy array and
+                        returns a filtered 2D NumPy array of the same shape.
+    marker_interpol (ndarray): A 1D array or list containing markers corresponding to each sample in the EEG data.
+    status (set or list): A set or list of statuses for which the bandpass filter should be applied.
+
+    Returns:
+    ndarray: A 2D NumPy array of shape (n_samples, n_channels) containing the EEG data, with the bandpass filter
+                applied to samples with specified statuses.
+    """
     eeg_filt_stat = np.zeros(eeg.shape)
     for index, t in enumerate(eeg_instants):
         sample = eeg[index, :][np.newaxis, :]

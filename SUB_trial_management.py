@@ -25,8 +25,19 @@ from scipy import signal
 
 
 def remove_zero_lines(array):
-    # input: ndarray size (x,y,z)
-    # mask to remove zero-lines
+    """
+    Removes rows from each 2D slice of a 3D NumPy array where all elements in the row are zero. Number of non-zero rows
+    does not have to be consistent.
+
+    Parameters:
+    array (ndarray): A 3D NumPy array of shape (x, y, z) where x is the number of 2D slices, y is the number of rows in
+                    each slice, and z is the number of columns in each row.
+
+    Returns:
+    ndarray: A list of 2D NumPy arrays (dtype=object), where each 2D array corresponds to a slice from the original
+            input array with rows containing all zeros removed.
+    """
+
     array_clean = []
     for i in range(array.shape[0]):
         slice_ = array[i]
@@ -90,6 +101,7 @@ def interpolate_markers(marker_ids, marker_dict, marker_instants, eeg_instants):
 def find_marker_times(marker_amout, marker_value, marker_interpol, eeg_instants):
     """
     Finds the start and end times of markers within EEG data and assigns classes to them.
+    Can be used for Reference and Feedback markers.
 
     Parameters:
     marker_amount (int): The total number of markers to find.
@@ -98,8 +110,8 @@ def find_marker_times(marker_amout, marker_value, marker_interpol, eeg_instants)
     eeg_instants (list of floats): Time instants for each EEG sample.
 
     Returns:
-    np.ndarray: A 2D array where each row contains the start time, end time, and class
-                (1 for left, 2 for right) of each marker.
+    ndarray: A 2D array where each row contains the start time, end time, and class
+                                (1 for left, 2 for right) of each marker.
     """
 
     marker_times = np.zeros((marker_amout, 3))

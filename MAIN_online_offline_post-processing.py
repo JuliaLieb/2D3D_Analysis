@@ -118,6 +118,7 @@ if __name__ == "__main__":
         'Session_End': 3}
     # Manage markers
     marker_interpol = SUB_trial_management.interpolate_markers(marker_ids, marker_dict, marker_instants, eeg_instants)
+    n_trials = marker_ids.count(['Start_of_Trial_l']) + marker_ids.count(['Start_of_Trial_r'])
 
     # ERDS and LDA recordings
     erds_pos = np.where(streams_info == lsl_config['fb-erds']['name'])[0][0]
@@ -129,20 +130,47 @@ if __name__ == "__main__":
     lda_time = lda['time_stamps']-time_zero
     lda_values = lda['time_series']
 
+    # ==============================================================================
+    # Find timespans of Reference and Feedback
+    # ==============================================================================
+
+    # find timespans when left/ right times with FEEDBACK
+    fb_times = SUB_trial_management.find_marker_times(n_trials, marker_dict['Feedback'],
+                                                      marker_interpol, eeg_instants)
+
+    # find timespans when left/ right times with REFERENCE
+    ref_times = SUB_trial_management.find_marker_times(n_trials, marker_dict['Reference'],
+                                                      marker_interpol, eeg_instants)
+
+    # ==============================================================================
+    # LDA from ONLINE calculated results
+    # ==============================================================================
+
+    # get online calculated lda
+    lda_online = SUB_lda_management.assess_lda_online(lda_values, lda_time, fb_times, n_fb)
+
+    # calculate mean LDA accuracy per task
+    avg_task_lda_acc_online = []
+    #avg_run_lda_acc_online = []
+    for trial in range(lda_online.shape[0]):
+        avg_task_lda_acc_online.append(np.mean(lda_online[trial][:, 1]))
+    #vg_run_lda_acc_online = np.mean(lda_online[:][:, 1])
+
+    # calculate mean LDA accuracy per run
+    #avg_run_lda_acc_online1 = np.mean(avg_task_lda_acc_online) # nicht korrektes Ergebnis - TODO
+    #avg_run_lda_acc_online2 = SUB_lda_management.calc_avg_acc(lda_online)
+
+
+    # plot online calculated LDA accuracy
+    SUB_plot_management.plot_online_lda(lda_online, avg_task_lda_acc_online, fb_times, config_file_path)
+    plt.savefig(result_path + timestamp + '_online_LDA_acc')
+    plt.show()
+
+    sys.exit() # °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
 
     # ==============================================================================
     # ERDS from ONLINE calculated results
     # ==============================================================================
-
-    # find timespans when left/ right times with FEEDBACK
-    fb_times = SUB_trial_management.find_marker_times(marker_ids.count(['Start_of_Trial_l']) +
-                                                      marker_ids.count(['Start_of_Trial_r']), marker_dict['Feedback'],
-                                                      marker_interpol, eeg_instants)
-
-    # find timespans when left/ right times with REFERENCE
-    ref_times = SUB_trial_management.find_marker_times(marker_ids.count(['Start_of_Trial_l']) +
-                                                      marker_ids.count(['Start_of_Trial_r']), marker_dict['Reference'],
-                                                      marker_interpol, eeg_instants)
 
     # get online calculated erds
     erds_online = SUB_erds_management.assess_erds_online(erds_values, erds_time, fb_times, n_fb, n_roi)
@@ -159,23 +187,6 @@ if __name__ == "__main__":
     #plt.savefig(result_path + timestamp + '_online_ERDS')
     #plt.show()
 
-
-    # ==============================================================================
-    # LDA from ONLINE calculated results
-    # ==============================================================================
-
-    # get online calculated lda
-    lda_online = SUB_lda_management.assess_lda_online(lda_values, lda_time, fb_times, n_fb)
-
-    # calculate mean LDA accuracy per task
-    avg_lda_acc_online = []
-    for trial in range(lda_online.shape[0]):
-        avg_lda_acc_online.append(np.mean(lda_online[trial][:, 1]))
-
-    # plot online calculated LDA accuracy
-    #SUB_plot_management.plot_online_lda(lda_online, avg_lda_acc_online, fb_times, config_file_path)
-    #plt.savefig(result_path + timestamp + '_online_LDA_acc')
-    #plt.show()
 
 
     # ==============================================================================
@@ -240,8 +251,7 @@ if __name__ == "__main__":
     # plot offline calculated ERDS for ROI channels
     #SUB_plot_management.plot_offline_erds(erds_offline_ch, roi_enabled_ix, fb_times, config_file_path)
     #plt.savefig(result_path + timestamp + '_offline_erds')
-    plt.show()
-
+    #plt.show()
 
 
     # plot comparison online - offline ERDS

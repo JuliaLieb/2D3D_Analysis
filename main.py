@@ -171,11 +171,11 @@ if __name__ == "__main__":
     calc_online_ERDS = False  # calculates results of oline calculated ERDS
     calc_offline_online_ERDS = False  # reproduce online calculated results of ERDS
     plot_ERDS_maps = False  # plots ERDS maps from EEG
-    calc_acc = False  # computes average of online calculated accuracy per run
+    calc_acc = True  # computes average of online calculated accuracy per run
     plot_comparison = False
     preprocess_raw = False
     reading_sig = False
-    preproc_to_fif = True
+    preproc_to_fif = False
     # -------------------------------------
     #######################################
     # -------------------------------------
@@ -320,7 +320,7 @@ if __name__ == "__main__":
                                         show_erds=True, cluster_mode=True, preproc_data=False, tfr_mode=True)
 
     if calc_acc:
-        filename = get_timefilename('acc_output.txt', results_path)
+        filename = get_timefilename('acc_output.txt', results_path, '.csv')
 
         with open(filename, 'w') as f:
             sys.stdout = f  # Redirect the standard output to the file
