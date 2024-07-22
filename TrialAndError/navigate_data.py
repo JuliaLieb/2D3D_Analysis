@@ -3,7 +3,8 @@ import json
 import os
 import glob
 
-import xdf_to_mat
+from ERDS import xdf_to_mat
+
 
 def save_xdf_to_mat(data_path, subject_list, session_list):
     """Saves all xdf files in the data_path to mat files.

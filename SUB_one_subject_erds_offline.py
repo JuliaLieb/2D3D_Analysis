@@ -1,33 +1,16 @@
-import os
-import sys
-
 import numpy as np
-from signal_reading import Input_Data
-import ERDS_calculation
 import mne
 import json
-import signal_reading
-import matplotlib.pyplot as plt
 import matplotlib
-from mne.stats import permutation_cluster_1samp_test as pcluster_test
-from matplotlib.colors import TwoSlopeNorm
-import offline_analysis
-import ERDS_calculation
-import main
 import pyxdf
-from matplotlib.colors import TwoSlopeNorm
+
 matplotlib.use('Qt5Agg')
-import pandas as pd
-from scipy.signal import butter, filtfilt, sosfiltfilt, sosfilt
-import bandpass
-from datetime import datetime
-from scipy import signal
 
-import SUB_plot_management, SUB_lda_management, SUB_erds_management, SUB_trial_management, SUB_filtering
+import SUB_erds_management, SUB_trial_management, SUB_filtering
 
 
 
-def compute_erds_per_run(config_file_path, xdf_file_path, preproc_file_path=None):
+def compute_offline_erds_per_run(subject_data_path, config_file_path, freq_band='mu', preproc=False):
 
     # ==============================================================================
     # Load files: infos and data
@@ -36,6 +19,14 @@ def compute_erds_per_run(config_file_path, xdf_file_path, preproc_file_path=None
     # CONFIG
     with open(config_file_path) as json_file:
         config = json.load(json_file)
+
+    subject_id = config['gui-input-settings']['subject-id']
+    n_session = config['gui-input-settings']['n-session']
+    n_run = config['gui-input-settings']['n-run']
+    motor_mode = config['gui-input-settings']['motor-mode']
+    erds_mode = config['feedback-model-settings']['erds']['mode']
+    dimension = config['gui-input-settings']['dimension-mode']
+    feedback = config['gui-input-settings']['fb-mode']
 
     lsl_config = config['general-settings']['lsl-streams']
     sample_rate = config['eeg-settings']['sample-rate']
@@ -61,6 +52,7 @@ def compute_erds_per_run(config_file_path, xdf_file_path, preproc_file_path=None
     roi_enabled_ix = [enabled_ch_names.index(ch) for ch in roi_ch_names if ch in enabled_ch_names]
 
     # XDF
+    xdf_file_path = subject_data_path + subject_id + '_run' + str(n_run) + '_' + motor_mode + '_' + dimension + '.xdf'
     streams, fileheader = pyxdf.load_xdf(xdf_file_path)
     stream_names = []
 
@@ -95,7 +87,12 @@ def compute_erds_per_run(config_file_path, xdf_file_path, preproc_file_path=None
         'Session_Start': 4,
         'Session_End': 3}
     # Manage markers
-    marker_interpol = SUB_trial_management.interpolate_markers(marker_ids, marker_dict, marker_instants, eeg_instants)
+    if n_run == 1:
+        marker_interpol = SUB_trial_management.interpolate_markers_first_run(marker_ids, marker_dict, marker_instants,
+                                                                             eeg_instants)
+    elif n_run > 1:
+        marker_interpol = SUB_trial_management.interpolate_markers(marker_ids, marker_dict, marker_instants,
+                                                                   eeg_instants)
     n_trials = marker_ids.count(['Start_of_Trial_l']) + marker_ids.count(['Start_of_Trial_r'])
     # find timespans when left/ right times with FEEDBACK
     fb_times = SUB_trial_management.find_marker_times(n_trials, marker_dict['Feedback'],
@@ -108,16 +105,31 @@ def compute_erds_per_run(config_file_path, xdf_file_path, preproc_file_path=None
     # Select and Filter EEG
     # ==============================================================================
 
-    if preproc_file_path != None:
-        signal_preproc = mne.io.read_raw_fif(preproc_file_path, preload=True)
-        eeg_preproc = signal_preproc.get_data().T
-        eeg_raw = eeg_preproc[:, enabled_ch]  # use preprocessed EEG
+    if preproc:
+        try:
+            preproc_file_path = subject_data_path + 'preproc_raw/' + '/run' + str(n_run) + '_preproc-raw.fif'
+            signal_preproc = mne.io.read_raw_fif(preproc_file_path, preload=True)
+            eeg_preproc = signal_preproc.get_data().T
+            eeg_raw = eeg_preproc[:, enabled_ch]  # use preprocessed EEG
+            print('Using preprocessed EEG data.')
+        except Exception as e:
+            print(f'Error processing subject {subject_id}, preprocessed file {preproc_file_path}. Continue processing raw signal.'
+                  f' Exception: {e}')
+            eeg_raw = eeg_signal[:, enabled_ch]
     else:
         eeg_raw = eeg_signal[:, enabled_ch]  # use raw EEG form .xdf file
 
     s_rate_half = sample_rate/2
-    fpass_erds = [freq / s_rate_half for freq in [9, 11]] # Mu-frequency-band
-    fstop_erds = [freq / s_rate_half for freq in [7.5, 12]]
+    if freq_band == 'mu':
+        fpass_erds = [freq / s_rate_half for freq in [9, 11]] # Mu-frequency-band wie online
+        fstop_erds = [freq / s_rate_half for freq in [7.5, 12]]
+    elif freq_band == 'alpha':
+        fpass_erds = [freq / s_rate_half for freq in [8, 12]]
+        fstop_erds = [freq / s_rate_half for freq in [6, 14]]
+    elif freq_band == 'beta':
+        fpass_erds = [freq / s_rate_half for freq in [16, 24]]
+        fstop_erds = [freq / s_rate_half for freq in [14, 26]]
+
     bp_erds = SUB_filtering.Bandpass(order=12, fstop=fstop_erds, fpass=fpass_erds, n=eeg_raw.shape[1])
 
 

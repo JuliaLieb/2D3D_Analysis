@@ -1,33 +1,14 @@
-import os
-import sys
-
 import numpy as np
-from signal_reading import Input_Data
-import ERDS_calculation
-import mne
 import json
-import signal_reading
-import matplotlib.pyplot as plt
 import matplotlib
-from mne.stats import permutation_cluster_1samp_test as pcluster_test
-from matplotlib.colors import TwoSlopeNorm
-import offline_analysis
-import ERDS_calculation
-import main
 import pyxdf
-from matplotlib.colors import TwoSlopeNorm
+
 matplotlib.use('Qt5Agg')
-import pandas as pd
-from scipy.signal import butter, filtfilt, sosfiltfilt, sosfilt
-import bandpass
-from datetime import datetime
-from scipy import signal
 
-import SUB_plot_management, SUB_lda_management, SUB_erds_management, SUB_trial_management, SUB_filtering
+import SUB_erds_management, SUB_trial_management
 
 
-
-def compute_erds_per_run(config_file_path, xdf_file_path, preproc_file_path=None):
+def compute_online_erds_per_run(subject_data_path, config_file_path):
 
     # ==============================================================================
     # Load files: infos and data
@@ -36,6 +17,14 @@ def compute_erds_per_run(config_file_path, xdf_file_path, preproc_file_path=None
     # CONFIG
     with open(config_file_path) as json_file:
         config = json.load(json_file)
+
+    subject_id = config['gui-input-settings']['subject-id']
+    n_session = config['gui-input-settings']['n-session']
+    n_run = config['gui-input-settings']['n-run']
+    motor_mode = config['gui-input-settings']['motor-mode']
+    erds_mode = config['feedback-model-settings']['erds']['mode']
+    dimension = config['gui-input-settings']['dimension-mode']
+    feedback = config['gui-input-settings']['fb-mode']
 
     lsl_config = config['general-settings']['lsl-streams']
     sample_rate = config['eeg-settings']['sample-rate']
@@ -61,6 +50,7 @@ def compute_erds_per_run(config_file_path, xdf_file_path, preproc_file_path=None
     roi_enabled_ix = [enabled_ch_names.index(ch) for ch in roi_ch_names if ch in enabled_ch_names]
 
     # XDF
+    xdf_file_path = subject_data_path + subject_id + '_run' + str(n_run) + '_' + motor_mode + '_' + dimension + '.xdf'
     streams, fileheader = pyxdf.load_xdf(xdf_file_path)
     stream_names = []
 
@@ -104,20 +94,24 @@ def compute_erds_per_run(config_file_path, xdf_file_path, preproc_file_path=None
                                                        eeg_instants)
 
     # ERDS online recordings
-    erds_pos = np.where(streams_info == lsl_config['fb-erds']['name'])[0][0]
-    erds = streams[erds_pos]
-    erds_time = erds['time_stamps']-time_zero
-    erds_values = erds['time_series']
+    if n_run > 1:
+        erds_pos = np.where(streams_info == lsl_config['fb-erds']['name'])[0][0]
+        erds = streams[erds_pos]
+        erds_time = erds['time_stamps']-time_zero
+        erds_values = erds['time_series']
 
 
-    # ==============================================================================
-    # ERDS from ONLINE calculated results
-    # ==============================================================================
+        # ==============================================================================
+        # ERDS from ONLINE calculated results
+        # ==============================================================================
 
-    # get online calculated erds
-    erds_online = SUB_erds_management.assess_erds_online(erds_values, erds_time, fb_times, n_fb, n_roi)
+        # get online calculated erds
+        erds_online = SUB_erds_management.assess_erds_online(erds_values, erds_time, fb_times, n_fb, n_roi)
 
-    # calculate the values for ANOVA
-    erds_on_l, erds_on_r = SUB_erds_management.calc_avg_erds_per_class(erds_online, fb_times)
+        # calculate the values for ANOVA
+        erds_on_l, erds_on_r = SUB_erds_management.calc_avg_erds_per_class(erds_online, fb_times)
 
-    return erds_on_l, erds_on_r
+        return erds_on_l, erds_on_r
+
+    else:
+        return None, None

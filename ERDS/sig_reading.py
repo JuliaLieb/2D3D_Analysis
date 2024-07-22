@@ -159,10 +159,12 @@ class Input_Data:
             lda = streams[lda_pos]
         '''
         # gets 'BrainVision RDA Markers' stream
-        orn_pos = np.where(streams_info == 'BrainVision RDA Markers')[0][0]
-        orn = streams[orn_pos]
-        orn_signal = orn['time_series']
-        orn_instants = orn['time_stamps']
+        if self.subject_id != 'S10': # Missing stream for S10
+            orn_pos = np.where(streams_info == 'BrainVision RDA Markers')[0][0]
+            orn = streams[orn_pos]
+            orn = streams[orn_pos]
+            orn_signal = orn['time_series']
+            orn_instants = orn['time_stamps']
 
         # gets 'BrainVision RDA Data' stream
         eeg_pos = np.where(streams_info == self.lsl_config['eeg']['name'])[0][0]
@@ -186,9 +188,10 @@ class Input_Data:
         #self.eeg_signal = np.asmatrix(self.eeg_signal)
 
         # check lost-samples problem
-        if len(orn_signal) != 0:
-            print('\n\nATTENTION: some samples have been lost during the acquisition!!\n\n')
-            self.fix_lost_samples(orn_signal, orn_instants, effective_sample_frequency)
+        if self.subject_id != 'S10': # Missing stream for S10
+            if len(orn_signal) != 0:
+                print('\n\nATTENTION: some samples have been lost during the acquisition!!\n\n')
+                self.fix_lost_samples(orn_signal, orn_instants, effective_sample_frequency)
 
         # remove signal mean
         #self.eeg_signal = self.eeg_signal - np.mean(self.eeg_signal, axis=0) # wird bei spatial filtering gemacht
@@ -910,14 +913,14 @@ class Input_Data:
         #self.visualize_raw()
         self.raw_filt.save(self.dir_epochs + '/run' + str(self.n_run) + '-raw.fif', overwrite=True)
 
-        alpha_freq = [8, 12]
-        self.alpha_band = self.get_frequency_band(alpha_freq)
-        beta_freq = [16, 24]
-        self.beta_band = self.get_frequency_band(beta_freq)
+        #alpha_freq = [8, 12]
+        #self.alpha_band = self.get_frequency_band(alpha_freq)
+        #beta_freq = [16, 24]
+        #self.beta_band = self.get_frequency_band(beta_freq)
 
         self.create_epochs(sig='raw', visualize_epochs=False)
-        self.create_epochs(sig='alpha', visualize_epochs=False)
-        self.create_epochs(sig='beta', visualize_epochs=False)
+        #self.create_epochs(sig='alpha', visualize_epochs=False)
+        #self.create_epochs(sig='beta', visualize_epochs=False)
         #self.create_evoked()
         #self.visualize_evoked()
 
@@ -960,8 +963,10 @@ class Input_Data:
         self.raw_time_filtering()
         self.raw_ica()
 
-        self.raw_filt.save(self.dir_preproc + '/run' + str(self.n_run) + '-' + '_preproc-raw.fif', overwrite=True)
+        preproc_filename = self.dir_preproc + '/run' + str(self.n_run) + '_preproc-raw.fif'
+        self.raw_filt.save(preproc_filename, overwrite=True)
         print(f"Preprocessed raw data saved to {self.dir_preproc}/run{str(self.n_run)}")
+        return preproc_filename
 
 
 

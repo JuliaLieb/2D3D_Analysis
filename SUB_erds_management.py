@@ -1,27 +1,7 @@
-import os
-import sys
-
 import numpy as np
-from signal_reading import Input_Data
-import ERDS_calculation
-import mne
-import json
-import signal_reading
-import matplotlib.pyplot as plt
 import matplotlib
-from mne.stats import permutation_cluster_1samp_test as pcluster_test
-from matplotlib.colors import TwoSlopeNorm
-import offline_analysis
-import ERDS_calculation
-import main
-import pyxdf
-from matplotlib.colors import TwoSlopeNorm
+
 matplotlib.use('Qt5Agg')
-import pandas as pd
-from scipy.signal import butter, filtfilt, sosfiltfilt, sosfilt
-import bandpass
-from datetime import datetime
-from scipy import signal
 import SUB_trial_management
 
 

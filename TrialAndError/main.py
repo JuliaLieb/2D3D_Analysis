@@ -1,16 +1,15 @@
 import os
 import numpy as np
 from signal_reading import Input_Data
-import ERDS_calculation
 import mne
-from colorama import init, Fore
-import xdf_to_mat
+from colorama import init
+from ERDS import xdf_to_mat
 import glob
 import json
-from calc_acc import calculate_accuracy
+from TrialAndError.calc_acc import calculate_accuracy
 import sys
 from datetime import datetime
-import plt_compare
+from TrialAndError import plt_compare, ERDS_calculation
 
 
 def find_config_files(path, subject_id):
@@ -219,7 +218,8 @@ if __name__ == "__main__":
             result_row = []
             #description_row = []
             for sig in freq_band:
-                for ses_ix, ses in enumerate(list(conditions.keys())):
+                for ses_key, ses_values in conditions.items():
+                    ses_ix = ses_values[subj_ix]
                     subject_data_path = data_path + subj + '-ses' + str(ses_ix) + '/'
                     print(f'\n\n\n\n ---------------Current path: {subject_data_path}--------------- \n')
                     config_files = find_config_files(subject_data_path, subject_id=subj)

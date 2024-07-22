@@ -154,3 +154,5 @@ def plot_online_vs_offline_avg_erds(avg_erds_online, avg_erds_offline, fb_times,
 
     plt.legend()
     plt.title("Comparison online / offline calculated average ERDS per trial:\n" + config_file_path)
+
+

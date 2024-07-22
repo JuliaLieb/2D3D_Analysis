@@ -5,10 +5,7 @@ import json
 import numpy as np
 import os
 import scipy.io
-import glob
-import matplotlib.pyplot as plt
 
-import xdf_to_mat
 
 def load_xdf(config, xdf_file_path, feedback):
     streams, fileheader = pyxdf.load_xdf(xdf_file_path)
