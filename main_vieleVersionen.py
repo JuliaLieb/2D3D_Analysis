@@ -1,6 +1,6 @@
 import os
 import numpy as np
-from signal_reading import Input_Data
+from sig_reading import Input_Data
 import mne
 from colorama import init
 import xdf_to_mat
@@ -136,22 +136,17 @@ def get_timefilename(name, path, format):
 if __name__ == "__main__":
     init()
     cwd = os.getcwd()
-    data_path = cwd + '/Data/'
-    results_path = cwd + '/Results/'
+    data_path = cwd + '/../Data/'
+    results_path = cwd + '/../Results/'
 
     if not os.path.exists(results_path):
         os.makedirs(results_path)
 
     # ----- Define Subject and Session ----
-    subject_list = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10', 'S11', 'S12', 'S13', 'S14', 'S15',
-                  'S16', 'S17']
-    session_list = [0, 1, 2]
-
-    ### ----- DATA FOR TESTING ----- ###
     subject_list = ['S14']
+    session_list = [0, 1, 2]
     subj = subject_list[0]
-    ses_ix = session_list[0]
-    run = 2
+    ses_ix = session_list[2]
 
     mon_me = [0] * len(subject_list)
     mon_mi = [2, 1, 1, 2, 1, 2, 2, 1, 2, 1, 1, 2, 2, 1, 2, 1, 2]
@@ -170,8 +165,8 @@ if __name__ == "__main__":
     save_xdf_to_mat = False  # saves EEG, ERDS and LDA as .mat files
     calc_online_ERDS = False  # calculates results of oline calculated ERDS
     calc_offline_online_ERDS = False  # reproduce online calculated results of ERDS
-    plot_ERDS_maps = False  # plots ERDS maps from EEG
-    calc_acc = True  # computes average of online calculated accuracy per run
+    plot_ERDS_maps = True  # plots ERDS maps from EEG
+    calc_acc = False  # computes average of online calculated accuracy per run
     plot_comparison = False
     preprocess_raw = False
     reading_sig = False
@@ -185,16 +180,16 @@ if __name__ == "__main__":
         calls run per config file and saves as epochs in .fif-file. 
         '''
         for subj in subject_list:
-            #for ses in session_list:
-            ses = ses_ix
-            try:
-                subject_data_path = data_path + subj + '-ses' + str(ses) + '/'
-                print(f'\n\n\n\n ---------------Current path: {subject_data_path}--------------- \n')
-                config_files = find_config_files(subject_data_path, subject_id=subj)
-                save_epochs_per_run(config_files, subject_data_path)
-            except Exception as e:
-                print(f'Error processing subject {subj} {ses}. Exception: {e}')
-                continue
+            for ses in session_list:
+            #es = ses_ix
+                try:
+                    subject_data_path = data_path + subj + '-ses' + str(ses) + '/'
+                    print(f'\n\n\n\n ---------------Current path: {subject_data_path}--------------- \n')
+                    config_files = find_config_files(subject_data_path, subject_id=subj)
+                    save_epochs_per_run(config_files, subject_data_path)
+                except Exception as e:
+                    print(f'Error processing subject {subj} {ses}. Exception: {e}')
+                    continue
 
     if create_mean_erds_results:
         '''
@@ -315,7 +310,7 @@ if __name__ == "__main__":
         '''
             plots ERDS maps calculated from EEG.mat
         '''
-        subject_data_path, config_file_path, xdf_file_path = load_current_file(subj, ses_ix, run)
+        subject_data_path, config_file_path, xdf_file_path = load_current_file(subj, ses_ix, run=1)
         data_from_mat = ERDS_calculation.Data_from_Mat(config_file_path, subject_data_path)
         ERDS_calculation.plot_erds_maps(data_from_mat, picks=['C3', 'Cz', 'C4'], show_epochs=False,
                                         show_erds=True, cluster_mode=True, preproc_data=False, tfr_mode=True)

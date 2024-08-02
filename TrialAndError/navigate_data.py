@@ -3,7 +3,7 @@ import json
 import os
 import glob
 
-from ERDS import xdf_to_mat
+import xdf_to_mat
 
 
 def save_xdf_to_mat(data_path, subject_list, session_list):
