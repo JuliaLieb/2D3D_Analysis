@@ -43,7 +43,7 @@ if __name__ == "__main__":
     roi = ["F3", "F4", "C3", "C4", "P3", "P4"]
     task = ['MI left', 'MI right']
     freq = 'alpha'
-    #freq_band = [8,12]
+    freq_band = [8,12]
     #freq = 'beta'
     #freq_band = [16, 24]
 
@@ -54,47 +54,6 @@ if __name__ == "__main__":
     vr_mi = [1]
     conditions = {'Control': mon_me, 'Monitor': mon_mi, 'VR': vr_mi}
     '''
-
-    """
-    # %% iterate to calculate and save preprocessed, epochs and evoked results
-    # Iterations over all files to calculate evoked results
-    for subj_ix, subj in enumerate(subject_list):
-        interim_subj_path = interim_path + subj + '/'
-        if not os.path.exists(interim_subj_path):
-            os.makedirs(interim_subj_path)
-
-        for ses_key, ses_values in conditions.items():
-            ses_ix = ses_values[subj_ix]
-            subject_data_path = data_path + subj + '-ses' + str(ses_ix) + '/'
-            config_files = find_config_files(subject_data_path, subject_id=subj)
-            all_evoked_left = []
-            all_evoked_right = []
-            for cur_config in config_files:
-                print(f'\n\n---------------Current path: {cur_config}--------------- \n')
-                try:
-                    data = Measurement_Data(cur_config, subject_data_path)
-                    evoked_left, evoked_right = data.run_preprocessing_to_evoked(ses_key, freq_band=True)
-                    all_evoked_left.append(evoked_left)
-                    all_evoked_right.append(evoked_right)
-                    print("Debug")
-                except Exception as e:
-                    print(f'Error processing subject {subj}, session {ses_ix}, '
-                          f'file {cur_config} . Exception: {e}')
-                    continue
-            ev_left = mne.combine_evoked(all_evoked_left, 'nave')
-            ev_right = mne.combine_evoked(all_evoked_right, 'nave')
-            ev_left.save(results_path + subj + '-ses' + ses_key + '_' + freq + '-left-ave.fif', overwrite=True)
-            ev_right.save(results_path + subj + '-ses' + ses_key + '_' + freq + '-right-ave.fif', overwrite=True)
-
-            #fig_l = ev_left.plot_topomap(ch_type="eeg")
-            #fig_l.savefig(subject_data_path + 'plots/left_topo_ses' + ses_key + '_' + freq + '.png', format='png')
-            #plt.close(fig_l)
-
-            #fig_r = ev_right.plot_topomap(ch_type="eeg")
-            #fig_r.savefig(subject_data_path + 'plots/right_topo_ses' + ses_key + '_' + freq + '.png', format='png')
-            #plt.close(fig_r)
-            winsound.Beep(600, 500)
-    """
 
 # %% combine evoked for conditions
     #"""
@@ -128,29 +87,46 @@ if __name__ == "__main__":
     evoked_right_Mon = mne.combine_evoked(all_evoked_right_Mon, weights='nave')
     evoked_left_Con = mne.combine_evoked(all_evoked_left_Con, weights='nave')
     evoked_right_Con = mne.combine_evoked(all_evoked_right_Con, weights='nave')
+    print('debug')
 
-    #fig_VR_l = evoked_left_VR.plot_topomap(ch_type="eeg")
-    #fig_VR_l = evoked_left_VR.plot_topomap(ch_type="eeg", average=4.6, times=[6.6, 8.9]) # zwei bilder pro fb
-    fig_VR_l = evoked_left_VR.plot_topomap(ch_type="eeg", average=7, times=[7.75], size=2, sphere='eeglab', cmap='RdBu_r', contours=10)
-    fig_VR_l.savefig(results_path + timestamp + '_topo_VR_left_' + freq + '.png', format='png')
-    #fig_VR_r = evoked_right_VR.plot_topomap(ch_type="eeg")
-    fig_VR_r = evoked_right_VR.plot_topomap(ch_type="eeg", average=7, times=[7.75], size=2, sphere='eeglab', cmap='RdBu_r', contours=10)
-    fig_VR_r.savefig(results_path + timestamp + '_topo_VR_right_' + freq + '.png', format='png')
 
-    #fig_Mon_l = evoked_left_Mon.plot_topomap(ch_type="eeg")
-    fig_Mon_l = evoked_left_Mon.plot_topomap(ch_type="eeg", average=7, times=[7.75], size=2, sphere='eeglab', cmap='RdBu_r', contours=10)
-    fig_Mon_l.savefig(results_path + timestamp + '_topo_Mon_left_' + freq + '.png', format='png')
-    #fig_Mon_r = evoked_right_Mon.plot_topomap(ch_type="eeg")
-    fig_Mon_r = evoked_right_Mon.plot_topomap(ch_type="eeg", average=7, times=[7.75], size=2, sphere='eeglab', cmap='RdBu_r', contours=10)
-    fig_Mon_r.savefig(results_path + timestamp + '_topo_Mon_right_' + freq + '.png', format='png')
+    freqs = np.linspace(freq_band[0], freq_band[1], 10)  # Frequenzen von bis
+    baseline = (1.5, 3)
+    vmin, vmax = -1, 1.5
+    cnorm = TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax)  # min, center, and max ERDS
 
-    #fig_Con_l = evoked_left_Con.plot_topomap(ch_type="eeg")
-    fig_Con_l = evoked_left_Con.plot_topomap(ch_type="eeg", average=7, times=[7.75], size=2, sphere='eeglab', cmap='RdBu_r', contours=10)
-    fig_Con_l.savefig(results_path + timestamp + '_topo_Con_left_' + freq + '.png', format='png')
-    #fig_Con_r = evoked_right_Con.plot_topomap(ch_type="eeg")
-    fig_Con_r = evoked_right_Con.plot_topomap(ch_type="eeg", average=7, times=[7.75], size=2, sphere='eeglab', cmap='RdBu_r', contours=10)
-    fig_Con_r.savefig(results_path + timestamp + '_topo_Con_right_' + freq + '.png', format='png')
-    #"""
+    power_left_VR = evoked_left_VR.compute_tfr(method="multitaper", freqs=freqs, n_cycles=freqs/2, use_fft=True)
+    power_left_VR.apply_baseline(baseline, mode='percent')
+    power_right_VR = evoked_right_VR.compute_tfr(method="multitaper", freqs=freqs, n_cycles=freqs/2, use_fft=True)
+    power_right_VR.apply_baseline(baseline, mode='percent')
+    power_left_Mon = evoked_left_Mon.compute_tfr(method="multitaper", freqs=freqs, n_cycles=freqs/2, use_fft=True)
+    power_left_Mon.apply_baseline(baseline, mode='percent')
+    power_right_Mon = evoked_right_Mon.compute_tfr(method="multitaper", freqs=freqs, n_cycles=freqs/2, use_fft=True)
+    power_right_Mon.apply_baseline(baseline, mode='percent')
+    power_left_Con = evoked_left_Con.compute_tfr(method="multitaper", freqs=freqs, n_cycles=freqs/2, use_fft=True)
+    power_left_Con.apply_baseline(baseline, mode='percent')
+    power_right_Con = evoked_right_Con.compute_tfr(method="multitaper", freqs=freqs, n_cycles=freqs/2, use_fft=True)
+    power_right_Con.apply_baseline(baseline, mode='percent')
+
+    fig, axes = plt.subplots(3, 2, figsize=(12, 12))
+    power_left_VR.plot_topomap(ch_type="eeg", tmin=4.25, tmax=11.25, axes=axes[0, 0], show=False, cmap="RdBu", vlim=(vmin, vmax), cnorm=cnorm, contours=10)
+    axes[0, 0].set_title('Left Hand - VR')
+    power_right_VR.plot_topomap(ch_type="eeg", tmin=4.25, tmax=11.25, axes=axes[0, 1], show=False, cmap="RdBu", vlim=(vmin, vmax), cnorm=cnorm, contours=10)
+    axes[0, 1].set_title('Right Hand - VR')
+    power_left_Mon.plot_topomap(ch_type="eeg", tmin=4.25, tmax=11.25, axes=axes[1, 0], show=False, cmap="RdBu", vlim=(vmin, vmax), cnorm=cnorm, contours=10)
+    axes[1, 0].set_title('Left Hand - Monitor')
+    power_right_Mon.plot_topomap(ch_type="eeg", tmin=4.25, tmax=11.25, axes=axes[1, 1], show=False, cmap="RdBu", vlim=(vmin, vmax), cnorm=cnorm, contours=10)
+    axes[1, 1].set_title('Right Hand - Monitor')
+    power_left_Con.plot_topomap(ch_type="eeg", tmin=4.25, tmax=11.25, axes=axes[2, 0], show=False, cmap="RdBu", vlim=(vmin, vmax), cnorm=cnorm, contours=10)
+    axes[2, 0].set_title('Left Hand - Control')
+    power_right_Con.plot_topomap(ch_type="eeg", tmin=4.25, tmax=11.25, axes=axes[2, 1], show=False, cmap="RdBu", vlim=(vmin, vmax), cnorm=cnorm, contours=10)
+    axes[2, 1].set_title('Right Hand - Control')
+    if freq == 'alpha':
+        fig.suptitle('Alpha Frequency Band (8-12Hz)')
+    else:
+        fig.suptitle('Beta Frequency Band (16-24 Hz)')
+    plt.tight_layout()
+    plt.show()
 
     #winsound.Beep(750, 1000)
     #winsound.Beep(550, 1000)

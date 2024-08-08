@@ -92,7 +92,7 @@ def plot_erds_maps(epochs, picks, t_min, t_max, path, session, show_erds=False, 
     freqs = np.arange(1, 30)
     vmin, vmax = -1, 1.5  # set min and max ERDS values in plot
     # baseline = [tmin, -0.5]  # baseline interval (in s)
-    baseline = [0, 3]  # baseline interval (in s)
+    baseline = [1.5, 3]  # baseline interval (in s)
     cnorm = TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax)  # min, center, and max ERDS
     kwargs = dict(n_permutations=50, step_down_p=0.05, seed=1,
                   buffer_size=None, out_type='mask')  # for cluster test
@@ -210,12 +210,61 @@ def plot_erds_maps(epochs, picks, t_min, t_max, path, session, show_erds=False, 
         g.fig.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.3)
         plt.show()
 
+def calc_inter_intra_erds(epochs, picks, t_min, t_max, freq):
+    freqs = np.arange(freq[0], freq[1]+1)
+    start_time = 4.25
+    end_time = 11.25
+
+    baseline = [1.5, 3]  # baseline interval (in s)
+
+    tfr = epochs.compute_tfr(method="multitaper", picks=picks, freqs=freqs, n_cycles=freqs/2, use_fft=True,
+                             return_itc=False, average=False, decim=2)
+    tfr.crop(t_min, t_max).apply_baseline(baseline,
+                                        mode="percent")  # subtracting the mean of baseline values followed by dividing by the mean of baseline values (‘percent’)
+    tfr.crop(0, t_max)
+
+    # Find indices corresponding to the time range
+    times = tfr.times
+    start_idx = np.argmin(np.abs(times - start_time))
+    end_idx = np.argmin(np.abs(times - end_time))
+
+    tfr_ev_l = tfr['Left']
+    selected_data_l = tfr_ev_l.data[:, :, :, start_idx:end_idx]
+    # Average over the selected time interval and all frequencies
+    avg_over_time_l = np.mean(selected_data_l, axis=-1)
+    avg_over_freq_and_time_l = np.mean(avg_over_time_l, axis=2)
+    final_avg_l = np.mean(avg_over_freq_and_time_l, axis=0)
+
+    tfr_ev_r = tfr['Right']
+    selected_data_r = tfr_ev_r.data[:, :, :, start_idx:end_idx]
+    # Average over the selected time interval and all frequencies
+    avg_over_time_r = np.mean(selected_data_r, axis=-1)
+    avg_over_freq_and_time_r = np.mean(avg_over_time_r, axis=2)
+    final_avg_r = np.mean(avg_over_freq_and_time_r, axis=0)
+
+    return final_avg_l, final_avg_r
+
+def plot_inter_intra_erds(avg_erds, roi, condition, cl, freq):
+    vmin, vmax = -1, 1.5  # set min and max ERDS values in plot
+    cnorm = TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax)
+    plt.figure(figsize=(8, 6))
+    plt.imshow(avg_erds, cmap="RdBu", aspect='auto', norm=cnorm)  # cmap="viridis"
+    plt.colorbar(label='ERD/S')
+    plt.title(f'ERD/S magnitudes per subject and ROI:\n{condition} {cl}, {freq} frequency band')
+    plt.xlabel('ROIs')
+    plt.ylabel('Subjects')
+
+    plt.xticks(np.arange(6), roi)
+    plt.yticks(np.arange(17), [f'Sub{i + 1}' for i in range(17)])
+
+    # Show the plot
+    plt.show()
 
 if __name__ == "__main__":
     cwd = os.getcwd()
-    data_path = cwd + '/Data/'
-    results_path = cwd + '/Results/'
-    interim_path = cwd + '/InterimResults/'
+    data_path = cwd + '/../Data/'
+    results_path = cwd + '/../Results/'
+    interim_path = cwd + '/../InterimResults/'
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
 
 
@@ -223,89 +272,43 @@ if __name__ == "__main__":
         os.makedirs(results_path)
 
     # subjects and sessions
-    #subject_list = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10', 'S11', 'S12', 'S13', 'S14', 'S15',
-    #                'S16', 'S17']
-    subject_list = ['S10', 'S11', 'S12', 'S13', 'S14', 'S15', 'S16', 'S17']
+    subject_list = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10', 'S11', 'S12', 'S13', 'S14', 'S15',
+                    'S16', 'S17']
+
     # study conditions
     mon_me = [0] * len(subject_list)
-    #mon_mi = [2, 1, 1, 2, 1, 2, 2, 1, 2, 1, 1, 2, 2, 1, 2, 1, 2] #S1-17
-    #vr_mi = [1, 2, 2, 1, 2, 1, 1, 2, 1, 2, 2, 1, 1, 2, 1, 2, 1] #S1-17
-    mon_mi = [1, 1, 2, 2, 1, 2, 1, 2]  # S1-17
-    vr_mi = [2, 2, 1, 1, 2, 1, 2, 1]  # S1-17
-    conditions = {'Control': mon_me, 'Monitor': mon_mi, 'VR': vr_mi}
-    roi = ["F3", "F4", "C3", "C4", "P3", "P4"]
-    task = ['MI left', 'MI right']
-    freq = 'alpha'
-    #freq = 'beta'
-    frequencies = np.linspace(8, 12, 10)  # Alpha frequencies
-    baseline = (0, 3)
-    times = [7]
+    mon_mi = [2, 1, 1, 2, 1, 2, 2, 1, 2, 1, 1, 2, 2, 1, 2, 1, 2] #S1-17
+    vr_mi = [1, 2, 2, 1, 2, 1, 1, 2, 1, 2, 2, 1, 1, 2, 1, 2, 1] #S1-17
 
     ### ----- DATA FOR TESTING ----- ###
+    ''' # Subjects 14-17
+    subject_list = ['S14', 'S15', 'S16', 'S17']
+    mon_mi = [1, 2, 1, 2]
+    vr_mi = [2, 1, 2, 1]
     '''
+    ''' # Subject 14
     subject_list = ['S14']
     mon_mi = [2]
     vr_mi = [1]
-    conditions = {'Control': mon_me, 'Monitor': mon_mi, 'VR': vr_mi}
     '''
-
-    # %% iterate to calculate erds mapsf from epochs
-    """
-    all_epochs_VR = []
-    all_epochs_Mon = []
-    all_epochs_Con = []
-
-    for subj_ix, subj in enumerate(subject_list):
-        interim_subj_path = interim_path + subj + '/'
-        if not os.path.exists(interim_subj_path):
-            os.makedirs(interim_subj_path)
-        for ses_key, ses_values in conditions.items():
-            ses_ix = ses_values[subj_ix]
-            subject_data_path = data_path + subj + '-ses' + str(ses_ix) + '/'
-            epoch_files = find_epoch_files(interim_subj_path, freq)
-            for run, cur_epoch in enumerate(epoch_files):
-                epoch = mne.read_epochs(cur_epoch, preload=True)
-                if cur_epoch.startswith(interim_subj_path + 'sesVR'):
-                    all_epochs_VR.append(epoch)
-                if cur_epoch.startswith(interim_subj_path + 'sesMonitor'):
-                    all_epochs_Mon.append(epoch)
-                if cur_epoch.startswith(interim_subj_path + 'sesControl'):
-                    all_epochs_Con.append(epoch)
-
-            combined_epochs_VR = mne.concatenate_epochs(all_epochs_VR)
-            combined_epochs_Mon = mne.concatenate_epochs(all_epochs_Mon)
-            combined_epochs_Con = mne.concatenate_epochs(all_epochs_Con)
-
-            plot_erds_maps(combined_epochs_VR, picks=['C3', 'Cz', 'C4'], t_min=0, t_max=11.5)
-            print('debug')
-
-
-            '''
-            for run, cur_epoch in enumerate(epoch_files):
-                print(f'\n\n---------------Current path: {interim_subj_path}--------------- \n')
-                try:
-                    epoch = mne.read_epochs(cur_epoch, preload=True)[0]
-                    power = epoch.compute_tfr(freqs=frequencies, n_cycles=(frequencies/ 2), method='multitaper', return_itc=False)
-    
-                    power.apply_baseline(baseline, mode='percent')
-                    power.plot_topomap(baseline=baseline, mode='percent', tmin=0, tmax=11.25, fmin=8, fmax=12)
-                    #if cur_epoch.startswith(interim_subj_path + 'sesVR'):
-                    #if cur_epoch.startswith(interim_subj_path + 'sesMonitor'):
-                    #if cur_epoch.startswith(interim_subj_path + 'sesControl'):
-                except Exception as e:
-                    print(f'Error processing subject {subj}, session {ses_ix}, '
-                          f'file {cur_epoch} . Exception: {e}')
-                    continue
-            '''
-     """
+    conditions = {'Control': mon_me, 'Monitor': mon_mi, 'VR': vr_mi}
+    roi = ["F3", "F4", "C3", "C4", "P3", "P4"]
+    task = ['MI left', 'MI right']
+    #freq = 'alpha'
+    #freq_band=[8,12]
+    freq = 'beta'
+    freq_band = [16,24]
+    frequencies = np.linspace(freq_band[0], freq_band[1], 10)  # Alpha frequencies
+    baseline = (0, 3)
+    times = [7]
 
     # %% iterate to calculate epochs from preprocessed fif files
-    all_epochs_VR = []
-    all_epochs_Mon = []
-    all_epochs_Con = []
+    '''
     for subj_ix, subj in enumerate(subject_list):
         interim_subj_path = interim_path + subj + '/'
-
+        all_epochs_VR = []
+        all_epochs_Mon = []
+        all_epochs_Con = []
         for ses_key, ses_values in conditions.items():
             ses_ix = ses_values[subj_ix]
             subject_data_path = data_path + subj + '-ses' + str(ses_ix) + '/'
@@ -324,12 +327,57 @@ if __name__ == "__main__":
         combined_epochs_VR = mne.concatenate_epochs(all_epochs_VR)
         combined_epochs_Mon = mne.concatenate_epochs(all_epochs_Mon)
         #combined_epochs_Con = mne.concatenate_epochs(all_epochs_Con)
-        plot_erds_maps(combined_epochs_VR, picks=['F3', 'F4', 'C3', 'C4', 'P3', 'P4'], t_min=0, t_max=11.5,
+        plot_erds_maps(combined_epochs_VR, picks=roi, t_min=0, t_max=11.5,
                        path=interim_subj_path, session='VR',  cluster_mode=True)
-        plot_erds_maps(combined_epochs_Mon, picks=['F3', 'F4', 'C3', 'C4', 'P3', 'P4'], t_min=0, t_max=11.5,
+        plot_erds_maps(combined_epochs_Mon, picks=roi, t_min=0, t_max=11.5,
                        path=interim_subj_path, session='Monitor', cluster_mode=True)
-        #plot_erds_maps(combined_epochs_Con, picks=['F3', 'F4', 'C3', 'C4', 'P3', 'P4'], t_min=0, t_max=11.5,
+        #plot_erds_maps(combined_epochs_Con, picks=roi, t_min=0, t_max=11.5,
         #               path=interim_subj_path, session='Control', cluster_mode=True)
+    '''
 
+    # %% iterate to calculate mean erds per condition & ROI from preprocessed fif files
+    #"""
+    avg_erds_VR_l = np.zeros((len(subject_list), 6))
+    avg_erds_VR_r = np.zeros((len(subject_list), 6))
+    avg_erds_Mon_l = np.zeros((len(subject_list), 6))
+    avg_erds_Mon_r = np.zeros((len(subject_list), 6))
+    for subj_ix, subj in enumerate(subject_list):
+        interim_subj_path = interim_path + subj + '/'
+        all_epochs_VR = []
+        all_epochs_Mon = []
+        all_epochs_Con = []
+        for ses_key, ses_values in conditions.items():
+            ses_ix = ses_values[subj_ix]
+            subject_data_path = data_path + subj + '-ses' + str(ses_ix) + '/'
+            raw_files = find_raw_files(interim_subj_path, 'preproc')
+            for run, cur_raw in enumerate(raw_files):
+                print(f"\n \n --------------- Session {ses_key} Run {run} ---------------")
+                raw = mne.io.read_raw_fif(cur_raw, preload=True)
+                epoch = create_epochs(raw)
+                if cur_raw.startswith(interim_subj_path + 'sesVR'):
+                    all_epochs_VR.append(epoch)
+                if cur_raw.startswith(interim_subj_path + 'sesMonitor'):
+                    all_epochs_Mon.append(epoch)
+                if cur_raw.startswith(interim_subj_path + 'sesControl'):
+                    all_epochs_Con.append(epoch)
+
+        combined_epochs_VR = mne.concatenate_epochs(all_epochs_VR)
+        combined_epochs_Mon = mne.concatenate_epochs(all_epochs_Mon)
+        combined_epochs_Con = mne.concatenate_epochs(all_epochs_Con)
+        avg_erds_VR_l[subj_ix, :], avg_erds_VR_r[subj_ix, :] = calc_inter_intra_erds(combined_epochs_VR, picks=roi,
+                                                                                     t_min=0, t_max=11.5, freq=freq_band)
+        avg_erds_Mon_l[subj_ix, :], avg_erds_Mon_r[subj_ix, :] = calc_inter_intra_erds(combined_epochs_Mon, picks=roi,
+                                                                                     t_min=0, t_max=11.5, freq=freq_band)
+
+    np.save(f'avg_erds_VR_l_{freq}.npy', avg_erds_VR_l)
+    np.save(f'avg_erds_VR_r_{freq}.npy', avg_erds_VR_r)
+    np.save(f'avg_erds_Mon_l_{freq}.npy', avg_erds_Mon_l)
+    np.save(f'avg_erds_Mon_r_{freq}.npy', avg_erds_Mon_r)
+
+    plot_inter_intra_erds(avg_erds_VR_l, roi, condition='VR', cl='Left Hand', freq=freq)
+    plot_inter_intra_erds(avg_erds_VR_r, roi, condition='VR', cl='Right Hand', freq=freq)
+    plot_inter_intra_erds(avg_erds_VR_l, roi, condition='Monitor', cl='Left Hand', freq=freq)
+    plot_inter_intra_erds(avg_erds_VR_r, roi, condition='Monitor', cl='Right Hand', freq=freq)
+    #"""
     winsound.Beep(750, 1000)
     winsound.Beep(550, 1000)
