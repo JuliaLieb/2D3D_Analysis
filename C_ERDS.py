@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------------------------------------------------------
-# Read data of preprocessed .fif file and process to results
+# ERDS processing
 # ----------------------------------------------------------------------------------------------------------------------
 import json
 import numpy as np
@@ -20,57 +20,6 @@ from mne.stats import permutation_cluster_1samp_test as pcluster_test
 from mne.time_frequency import tfr_multitaper
 import winsound
 
-def find_config_files(path, subject_id):
-    config_files = []
-    for file in os.listdir(path):
-        if file.startswith('CONFIG_' + subject_id):
-            if file.endswith('.json'):
-                config_files.append(path + file)
-    return config_files
-
-def find_epoch_files(path, suffix):
-    epoch_files = []
-    for file in os.listdir(path):
-        if file.endswith(suffix + '-epo.fif'):
-            epoch_files.append(path + file)
-    return epoch_files
-
-def find_raw_files(path, suffix):
-    raw_files = []
-    for file in os.listdir(path):
-        if file.endswith(suffix + '-raw.fif'):
-            raw_files.append(path + file)
-    return raw_files
-
-def create_epochs(raw, tmin=0, tmax=11.25, reject_criteria={"eeg": 0.0002}):
-    """
-    Function to extract events from the marker data, generate the correspondent epochs and determine annotation in
-    the raw data according to the events
-    :param visualize_epochs: boolean variable to select if generate epochs plots or not
-    :param rois: boolean variable to select if visualize results according to the rois or for each channel
-    :param set_annotations: boolean variable, if it's necessary to set the annotations or not
-    """
-
-    # set the annotations on the current raw and extract the correspondent events
-    raw.set_annotations(raw.annotations)
-    events, event_mapping = mne.events_from_annotations(raw)
-    event_id = {'Left': 1, 'Right': 2}
-
-    # generation of the epochs according to the events
-    epochs = mne.Epochs(raw, events, event_id=event_id, preload=True, baseline=(0, tmin),
-                             reject=reject_criteria, tmin=tmin, tmax=tmax)  # event_id=self.event_mapping,
-    return epochs
-
-def run_epoch_to_evoked(file_path):
-
-    epochs = mne.read_epochs(file_path, preload=True)
-
-    evoked_left = epochs['Left'].average()
-    # evoked_left.plot_topomap(ch_type="eeg")
-    evoked_right = epochs['Right'].average()
-    # evoked_right.plot_topomap(ch_type="eeg")
-
-    return evoked_left, evoked_right
 
 def calc_clustering(tfr_ev, ch, kwargs):
     # positive clusters
@@ -101,7 +50,7 @@ def plot_erds_maps(epochs, picks, t_min, t_max, path, session, show_erds=False, 
     tfr.crop(0, t_max)
 
 
-    for event in epoch.event_id:
+    for event in epochs.event_id:
         # select desired epochs for visualization
         tfr_ev = tfr[event]
         num_channels = len(picks)
@@ -121,7 +70,7 @@ def plot_erds_maps(epochs, picks, t_min, t_max, path, session, show_erds=False, 
 
                 # plot TFR (ERDS map with masking)
                 tfr_ev.average().plot([ch], cmap="RdBu", cnorm=cnorm, axes=ax,
-                                      colorbar=False, show=False, mask=mask, mask_style="mask")  #mask_style="both", no contours ="mask"
+                                      colorbar=False, show=False, mask=mask, mask_style="both")  #mask_style="both", no contours ="mask"
             else:
                 tfr_ev.average().plot([ch], cmap="RdBu", cnorm=cnorm, axes=ax,
                                       colorbar=False, show=False)  # , vlim=(-1.5, 1.5)
@@ -256,129 +205,3 @@ def plot_inter_intra_erds(avg_erds, roi, condition, cl, freq):
 
     # Show the plot
     plt.show()
-
-
-if __name__ == "__main__":
-    cwd = os.getcwd()
-    data_path = cwd + '/../Data/'
-    results_path = cwd + '/../Results/'
-    interim_path = cwd + '/../InterimResults/'
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-
-
-    if not os.path.exists(results_path):
-        os.makedirs(results_path)
-
-    # subjects and sessions
-    subject_list = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10', 'S11', 'S12', 'S13', 'S14', 'S15',
-                    'S16', 'S17']
-
-    # study conditions
-    mon_me = [0] * len(subject_list)
-    mon_mi = [2, 1, 1, 2, 1, 2, 2, 1, 2, 1, 1, 2, 2, 1, 2, 1, 2] #S1-17
-    vr_mi = [1, 2, 2, 1, 2, 1, 1, 2, 1, 2, 2, 1, 1, 2, 1, 2, 1] #S1-17
-
-    ### ----- DATA FOR TESTING ----- ###
-    ''' # Subjects 14-17
-    subject_list = ['S14', 'S15', 'S16', 'S17']
-    mon_mi = [1, 2, 1, 2]
-    vr_mi = [2, 1, 2, 1]
-    '''
-    ''' # Subject 14
-    subject_list = ['S14']
-    mon_mi = [2]
-    vr_mi = [1]
-    '''
-    conditions = {'Control': mon_me, 'Monitor': mon_mi, 'VR': vr_mi}
-    roi = ["F3", "F4", "C3", "C4", "P3", "P4"]
-    task = ['MI left', 'MI right']
-    #freq = 'alpha'
-    #freq_band=[8,12]
-    freq = 'beta'
-    freq_band = [16,24]
-    frequencies = np.linspace(freq_band[0], freq_band[1], 10)  # Alpha frequencies
-    baseline = (0, 3)
-    times = [7]
-
-    # %% iterate to calculate epochs from preprocessed fif files
-    #'''
-    for subj_ix, subj in enumerate(subject_list):
-        interim_subj_path = interim_path + subj + '/'
-        all_epochs_VR = []
-        all_epochs_Mon = []
-        all_epochs_Con = []
-        for ses_key, ses_values in conditions.items():
-            ses_ix = ses_values[subj_ix]
-            subject_data_path = data_path + subj + '-ses' + str(ses_ix) + '/'
-            raw_files = find_raw_files(interim_subj_path, 'preproc')
-            for run, cur_raw in enumerate(raw_files):
-                print(f"\n \n --------------- Session {ses_key} Run {run} ---------------")
-                raw = mne.io.read_raw_fif(cur_raw, preload=True)
-                epoch = create_epochs(raw)
-                if cur_raw.startswith(interim_subj_path + 'sesVR'):
-                    all_epochs_VR.append(epoch)
-                if cur_raw.startswith(interim_subj_path + 'sesMonitor'):
-                    all_epochs_Mon.append(epoch)
-                if cur_raw.startswith(interim_subj_path + 'sesControl'):
-                    all_epochs_Con.append(epoch)
-
-        combined_epochs_VR = mne.concatenate_epochs(all_epochs_VR)
-        combined_epochs_Mon = mne.concatenate_epochs(all_epochs_Mon)
-        #combined_epochs_Con = mne.concatenate_epochs(all_epochs_Con)
-        #'''
-        plot_erds_maps(combined_epochs_VR, picks=roi, t_min=0, t_max=11.5,
-                       path=interim_subj_path, session='VR',  cluster_mode=True)
-        plot_erds_maps(combined_epochs_Mon, picks=roi, t_min=0, t_max=11.5,
-                       path=interim_subj_path, session='Monitor', cluster_mode=True)
-        #plot_erds_maps(combined_epochs_Con, picks=roi, t_min=0, t_max=11.5,
-        #               path=interim_subj_path, session='Control', cluster_mode=True)
-        #'''
-        compute_erds(combined_epochs_VR, roi, fs=500, t_min=0, f_min=0, f_max=50, path="C:/2D3D_Analysis/Results/")
-    #'''
-
-    # %% iterate to calculate mean erds per condition & ROI from preprocessed fif files
-    """
-    avg_erds_VR_l = np.zeros((len(subject_list), 6))
-    avg_erds_VR_r = np.zeros((len(subject_list), 6))
-    avg_erds_Mon_l = np.zeros((len(subject_list), 6))
-    avg_erds_Mon_r = np.zeros((len(subject_list), 6))
-    for subj_ix, subj in enumerate(subject_list):
-        interim_subj_path = interim_path + subj + '/'
-        all_epochs_VR = []
-        all_epochs_Mon = []
-        all_epochs_Con = []
-        for ses_key, ses_values in conditions.items():
-            ses_ix = ses_values[subj_ix]
-            subject_data_path = data_path + subj + '-ses' + str(ses_ix) + '/'
-            raw_files = find_raw_files(interim_subj_path, 'preproc')
-            for run, cur_raw in enumerate(raw_files):
-                print(f"\n \n --------------- Session {ses_key} Run {run} ---------------")
-                raw = mne.io.read_raw_fif(cur_raw, preload=True)
-                epoch = create_epochs(raw)
-                if cur_raw.startswith(interim_subj_path + 'sesVR'):
-                    all_epochs_VR.append(epoch)
-                if cur_raw.startswith(interim_subj_path + 'sesMonitor'):
-                    all_epochs_Mon.append(epoch)
-                if cur_raw.startswith(interim_subj_path + 'sesControl'):
-                    all_epochs_Con.append(epoch)
-
-        combined_epochs_VR = mne.concatenate_epochs(all_epochs_VR)
-        combined_epochs_Mon = mne.concatenate_epochs(all_epochs_Mon)
-        combined_epochs_Con = mne.concatenate_epochs(all_epochs_Con)
-        avg_erds_VR_l[subj_ix, :], avg_erds_VR_r[subj_ix, :] = calc_inter_intra_erds(combined_epochs_VR, picks=roi,
-                                                                                     t_min=0, t_max=11.5, freq=freq_band)
-        avg_erds_Mon_l[subj_ix, :], avg_erds_Mon_r[subj_ix, :] = calc_inter_intra_erds(combined_epochs_Mon, picks=roi,
-                                                                                     t_min=0, t_max=11.5, freq=freq_band)
-
-    np.save(f'avg_erds_VR_l_{freq}.npy', avg_erds_VR_l)
-    np.save(f'avg_erds_VR_r_{freq}.npy', avg_erds_VR_r)
-    np.save(f'avg_erds_Mon_l_{freq}.npy', avg_erds_Mon_l)
-    np.save(f'avg_erds_Mon_r_{freq}.npy', avg_erds_Mon_r)
-
-    plot_inter_intra_erds(avg_erds_VR_l, roi, condition='VR', cl='Left Hand', freq=freq)
-    plot_inter_intra_erds(avg_erds_VR_r, roi, condition='VR', cl='Right Hand', freq=freq)
-    plot_inter_intra_erds(avg_erds_VR_l, roi, condition='Monitor', cl='Left Hand', freq=freq)
-    plot_inter_intra_erds(avg_erds_VR_r, roi, condition='Monitor', cl='Right Hand', freq=freq)
-    """
-    winsound.Beep(750, 1000)
-    winsound.Beep(550, 1000)

@@ -85,7 +85,7 @@ if __name__ == "__main__":
                     continue
                 #"""
 
-            #""" # Calculate ERDS Results
+            """ # Calculate ERDS Results
                 try:
                     erds_off_l, erds_off_r = compute_offline_erds_per_run(subject_data_path, cur_config,
                                                                           freq_band=freq, preproc=True)
@@ -116,5 +116,5 @@ if __name__ == "__main__":
     with open(results_file, 'a') as file:
         np.savetxt(file, results_array, delimiter=',')
         
-#"""
+"""
     winsound.Beep(1000, 3000)

@@ -1,5 +1,6 @@
 # ----------------------------------------------------------------------------------------------------------------------
 # Read data of config and xdf signal
+# save original_raw, preproc_raw, epochs, evoked
 # ----------------------------------------------------------------------------------------------------------------------
 import json
 import numpy as np
@@ -18,7 +19,7 @@ import seaborn as sns
 from matplotlib.colors import TwoSlopeNorm
 from mne.stats import permutation_cluster_1samp_test as pcluster_test
 
-class Input_Data:
+class Measurement_Data:
     def __init__(self, config_file_path, subject_directory):
         with open(config_file_path) as json_file:
             self.config = json.load(json_file)
@@ -31,6 +32,13 @@ class Input_Data:
         self.erds_mode = self.config['feedback-model-settings']['erds']['mode']
         self.dimension = self.config['gui-input-settings']['dimension-mode']
         self.feedback = self.config['gui-input-settings']['fb-mode']
+        if self.motor_mode == "MI":
+            if self.dimension == "2D":
+                self.ses_key = "Monitor"
+            if self.dimension == "3D":
+                self.ses_key = "VR"
+        elif self.motor_mode == "ME":
+            self.ses_key = "Control"
 
         self.lsl_config = self.config['general-settings']['lsl-streams']
         self.sample_rate = self.config['eeg-settings']['sample-rate']
@@ -83,20 +91,10 @@ class Input_Data:
         self.rois_numbers = {}
 
         # directories
-        self.dir_plots = subject_directory + 'plots'
+        self.dir_subj_interim = subject_directory + '/../../InterimResults/' + self.subject_id + '/'
+        self.dir_plots = self.dir_subj_interim + 'plots/'
         if not os.path.exists(self.dir_plots):
             os.makedirs(self.dir_plots)
-        #self.dir_files = subject_directory + '/dataset'
-        #if not os.path.exists(self.dir_files):
-        #    print(".mat files are not available to initialize EEG signal.")
-        #    return
-        self.dir_epochs = subject_directory + 'epochs'
-        if not os.path.exists(self.dir_epochs):
-            os.makedirs(self.dir_epochs)
-
-        self.dir_preproc = subject_directory + 'preproc_raw'
-        if not os.path.exists(self.dir_preproc):
-            os.makedirs(self.dir_preproc)
 
         # .xdf file
         self.xdf_file = subject_directory + self.subject_id + '_run' + str(self.n_run) + '_' + self.motor_mode + '_' + self.dimension + '.xdf'
@@ -105,6 +103,7 @@ class Input_Data:
 
         #class info
         self.event_dict = dict(left=0, right=1)
+        self.event_id = {'left': 1, 'right': 2}
         self.eeg_data = self.add_class_labels()
         indexes_class_1 = np.where(self.eeg_data[0, :] == 121)[0]
         indexes_class_2 = np.where(self.eeg_data[0, :] == 122)[0]
@@ -119,11 +118,13 @@ class Input_Data:
         self.bad_epochs = ['Reference', 'Cue', 'Feedback', 'Session_Start', 'Session_End', 'End_of_Trial' ]
         self.epochs_reject_criteria = {"eeg": 0.0002}  # original 0.0002, 0.0005 & None probiert
         self.annotations = None
-        self.events, self.event_mapping, self.epochs = None, None, None
+        self.events, self.event_mapping, self.epochs, self.epochs_alpha, self.epochs_beta = None, None, None, None, None
         self.events_r, self.events_l, self.epochs_r, self.epochs_l = None, None, None, None
         self.tmin = 0
         self.tmax = 11.25
+        self.baseline = [1.5, 3]
         self.evoked = {}
+        self.evoked_left, self.evoked_right = None, None
         self.alpha_band, self.beta_band = None, None
 
     def load_xdf(self):
@@ -313,25 +314,25 @@ class Input_Data:
         for roi in self.roi_info.keys():
             self.rois_numbers[roi] = np.array([self.raw.ch_names.index(i) for i in self.roi_info[roi]])
 
-    def raw_spatial_filtering(self):
+    def raw_spatial_filtering(self, signal):
         """
         Resetting the reference in raw data according to the spatial filtering type in the input dict
         """
 
-        mne.set_eeg_reference(self.raw_filt, ref_channels='average', copy=False)
+        mne.set_eeg_reference(signal, ref_channels='average', copy=False)
 
-    def raw_time_filtering(self):
+    def raw_time_filtering(self, signal):
         """
         Filter of MNE raw instance data with a band-pass filter and a notch filter
         """
         # apply band-pass filter
         if not (self.lp_freq is None and self.hp_freq is None):
-            self.raw_filt.filter(l_freq=self.lp_freq, h_freq=self.hp_freq, l_trans_bandwidth=0.1, h_trans_bandwidth=0.1,
+            signal.filter(l_freq=self.lp_freq, h_freq=self.hp_freq, l_trans_bandwidth=0.1, h_trans_bandwidth=0.1,
                             verbose=40, method='fir')
 
         # apply notch filter
         if self.n_freq is not None:
-            self.raw_filt.notch_filter(freqs=self.n_freq, verbose=40)
+            signal.notch_filter(freqs=self.n_freq, verbose=40)
 
     def visualize_raw(self, signal=True, psd=False, psd_topo=False):
         """
@@ -351,10 +352,10 @@ class Input_Data:
             self.raw.compute_psd().plot_topo()
         plt.show()
 
-    def raw_ica(self):
+    def raw_ica(self, signal):
         n_components = len(self.ch_names)
 
-        eeg_raw = self.raw_filt.copy()
+        eeg_raw = signal.copy()
         eeg_raw = eeg_raw.pick_types(eeg=True)
 
         ica = mne.preprocessing.ICA(n_components=0.99999, method='fastica', random_state=97)
@@ -370,7 +371,7 @@ class Input_Data:
         viz_scaling = dict(eeg=1e-4, eog=1e-4, ecg=1e-4, bio=1e-7, misc=1e-5)
         #reconst_raw.plot(scalings=viz_scaling)
         #reconst_raw.plot_psd()
-        self.raw_filt = reconst_raw
+        return reconst_raw
 
     def create_annotations(self, full=True):
         """
@@ -411,57 +412,25 @@ class Input_Data:
         # define MNE annotations
         self.annotations = mne.Annotations(triggers['onsets'], triggers['duration'], triggers['description'])
 
-    def create_epochs(self, sig='raw', visualize_epochs=True, rois=True, set_annotations=True):
+    def create_epochs(self, signal):
         """
         Function to extract events from the marker data, generate the correspondent epochs and determine annotation in
         the raw data according to the events
+        :param signal: Measurement_Data variable (all frequency bands, alpha or beta)
         :param visualize_epochs: boolean variable to select if generate epochs plots or not
-        :param rois: boolean variable to select if visualize results according to the rois or for each channel
         :param set_annotations: boolean variable, if it's necessary to set the annotations or not
         """
-        if sig == 'raw':
-            #signal = self.raw
-            signal = self.raw_filt
-        elif sig == 'alpha':
-            signal = self.alpha_band
-        elif sig == 'beta':
-            signal = self.beta_band
-        else:
-            print('Select correct signal type raw, alpha or beta.')
 
         # set the annotations on the current raw and extract the correspondent events
-        if set_annotations:
-            signal.set_annotations(self.annotations)
+        signal.set_annotations(self.annotations)
         self.events, self.event_mapping = mne.events_from_annotations(signal)
 
-        # Automatic rejection criteria for the epochs
-        reject_criteria = self.epochs_reject_criteria
-
         # generation of the epochs according to the events
-        self.epochs = mne.Epochs(signal, self.events, preload=True, baseline=(self.tmin, 0),
-                                 reject=reject_criteria, tmin=self.tmin, tmax=self.tmax) # event_id=self.event_mapping,
+        epochs = mne.Epochs(signal, self.events, preload=True, baseline=self.baseline,
+                            reject=self.epochs_reject_criteria, tmin=self.tmin, tmax=self.tmax, event_id=self.event_id)
+        # event_id=self.event_mapping, baseline=(self.tmin, 0)
 
-        # separate left and right
-        '''
-        index_r = np.where(self.events[:, 2] == 2)
-        index_l = np.where(self.events[:, 2] == 1)
-        self.events_r = self.events[index_r]
-        self.events_l = self.events[index_l]
-        self.epochs_r = mne.Epochs(signal, self.events_r, preload=True, baseline=(self.tmin, 0),
-                                 reject=reject_criteria, tmin=self.tmin, tmax=self.tmax)
-        self.epochs_l = mne.Epochs(signal, self.events_l, preload=True, baseline=(self.tmin, 0),
-                                 reject=reject_criteria, tmin=self.tmin, tmax=self.tmax)
-        self.epochs_l.save(self.dir_epochs + '/l_run' + str(self.n_run) + '-' + sig + '-epo.fif', overwrite=True)
-        self.epochs_r.save(self.dir_epochs + '/r_run' + str(self.n_run) + '-' + sig + '-epo.fif', overwrite=True)
-        '''
-        if visualize_epochs:
-            self.visualize_all_epochs(signal=False, rois=False)
-            #self.visualize_l_r_epochs(signal=False, rois=False)
-
-        self.epochs.save(self.dir_epochs + '/run' + str(self.n_run) + '-' + sig + '-epo.fif', overwrite=True)
-
-
-        return self.epochs_l, self.epochs_r
+        return epochs
 
     def get_frequency_band(self, freqency_band):
         frequency_band=self.raw_filt.copy()
@@ -485,54 +454,19 @@ class Input_Data:
         if rois:
             images = self.epochs.plot_image(combine='mean', group_by=self.rois_numbers, show=False)
             for idx, img in enumerate(images):
-                img.savefig(self.dir_plots + '/' + rois_names[idx] + '.png')
+                img.savefig(self.dir_plots  + rois_names[idx] + '.png')
                 plt.close(img)
 
         # generate the epochs plots for each channel and save them
         else:
             images = self.epochs.plot_image(show=False, picks=ch_picks)
             for idx, img in enumerate(images):
-                img.savefig(self.dir_plots + '/' + ch_picks[idx] + '.png')
+                img.savefig(self.dir_plots + ch_picks[idx] + '.png')
                 plt.close(img)
 
         plt.close('all')
 
-    def visualize_l_r_epochs(self, signal=True, rois=True):
-
-        #self.visualize_raw(signal=signal, psd=False, psd_topo=False)
-        rois_names = list(self.roi_info)
-        ch_picks = ['C3', 'C4']
-
-        # generate the mean plots according to the condition in the annotation value
-
-        # generate the epochs plots according to the roi and save them
-        if rois:
-            # right
-            images = self.epochs_r.plot_image(combine='mean', group_by=self.rois_numbers, show=False)
-            for idx, img in enumerate(images):
-                img.savefig(self.dir_plots + '/right_' + rois_names[idx] + '.png')
-                plt.close(img)
-            # left
-            images = self.epochs_l.plot_image(combine='mean', group_by=self.rois_numbers, show=False)
-            for idx, img in enumerate(images):
-                img.savefig(self.dir_plots + '/left_' + rois_names[idx] + '.png')
-                plt.close(img)
-
-        # generate the epochs plots for each channel and save them
-        else:
-            #right
-            images = self.epochs_r.plot_image(picks=ch_picks, show=False)
-            for idx, img in enumerate(images):
-                img.savefig(self.dir_plots + '/right_' + ch_picks[idx] + '.png')
-                plt.close(img)
-            #left
-            images = self.epochs_l.plot_image(picks=ch_picks, show=False)
-            for idx, img in enumerate(images):
-                img.savefig(self.dir_plots + '/left_' + ch_picks[idx] + '.png')
-                plt.close(img)
-
     # EVOKED
-    '''
     def create_evoked(self, rois=True):
         """
         Function to define the evoked variables starting from the epochs. The evoked will be considered separately for
@@ -584,10 +518,10 @@ class Input_Data:
             max_value = max(np.max(data), max_value)
 
         # path for images saving
-        Path(self.dir_files + '/epochs/').mkdir(parents=True, exist_ok=True)
+        #Path(self.dir_files + '/epochs/').mkdir(parents=True, exist_ok=True)
 
         number_conditions = len(list(self.event_mapping.keys()))
-        path = self.dir_files + '/epochs/conditions.png'
+        #path = self.dir_files + '/epochs/conditions.png'
         fig, axs = plt.subplots(int(np.ceil(number_conditions/2)), 2, figsize=(25.6, 19.2))
 
         for i, ax in enumerate(fig.axes):
@@ -613,10 +547,10 @@ class Input_Data:
             ax.set_title(condition)
             ax.legend()
 
-        plt.savefig(path)
-        plt.close()
+        #plt.savefig(path)
+        #plt.close()
 
-        path = self.dir_files + '/epochs/rois.png'
+        #path = self.dir_files + '/epochs/rois.png'
         number_rois = len(list(self.rois_numbers.keys()))
         fig, axs = plt.subplots(int(np.ceil(number_rois/2)), 2, figsize=(25.6, 19.2))
 
@@ -643,9 +577,9 @@ class Input_Data:
             ax.set_title(roi)
             ax.legend()
 
-        plt.savefig(path)
-        plt.close()
-    '''
+        #plt.savefig(path)
+        #plt.close()
+
 
     def calc_clustering(tfr_ev, ch, kwargs):
         # positive clusters
@@ -662,44 +596,36 @@ class Input_Data:
 
         return c, p, mask
 
-    def plot_erds_maps(self, picks=['C3', 'Cz', 'C4'], show_epochs=False, show_erds=True, cluster_mode=False,
-                       preproc_data=False, tfr_mode=False):
+    def plot_erds_maps(self, epochs, picks=['C3', 'C4'], show_epochs=False, show_erds=False, cluster_mode=False):
 
-        if preproc_data == False:
-            raw_data = self.raw.copy()
-        else:
-            raw_data = self.raw_filt.copy()
-
-        epochs = mne.Epochs(raw_data, self.evnt, self.event_dict, self.tmin - 0.5, self.tmax + 0.5,
-                            picks=picks, baseline=None,
-                            preload=True)
         if show_epochs == True:
             epochs.plot(picks=picks, show_scrollbars=True, events=self.evnt,
                         event_id=self.event_dict, block=False)
-            plt.savefig('{}/epochs_{}_run{}_{}.png'.format(self.dir_plots, self.motor_mode,
-                                                           str(self.n_run),
-                                                           self.dimension), format='png')
 
         freqs = np.arange(1, 30)
-        vmin, vmax = -1, 1  # set min and max ERDS values in plot
+        vmin, vmax = -1, 1.5  # set min and max ERDS values in plot
         # baseline = [tmin, -0.5]  # baseline interval (in s)
-        baseline = [self.tmin, 0]  # baseline interval (in s)
+        # baseline interval (in s)  #[self.tmin, 0]
         cnorm = TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax)  # min, center, and max ERDS
         kwargs = dict(n_permutations=100, step_down_p=0.05, seed=1,
                       buffer_size=None, out_type='mask')  # for cluster test
 
         tfr = epochs.compute_tfr(method="multitaper", picks=picks, freqs=freqs, n_cycles=freqs, use_fft=True,
                                  return_itc=False, average=False, decim=2)
-        tfr.crop(self.tmin, self.tmax).apply_baseline(baseline,
-                                                      mode="percent")  # subtracting the mean of baseline values followed by dividing by the mean of baseline values (‘percent’)
+        tfr.crop(self.tmin, self.tmax).apply_baseline(self.baseline, mode="percent")
         tfr.crop(0, self.tmax)
 
         for event in self.event_dict:
             # select desired epochs for visualization
             tfr_ev = tfr[event]
-            fig, axes = plt.subplots(1, 4, figsize=(12, 4), gridspec_kw={"width_ratios": [10, 10, 10, 1]})  # , 0.5
+            num_channels = len(picks)
+            num_cols = 2
+            num_rows = int(np.ceil(num_channels / num_cols))
+            fig, axes = plt.subplots(num_rows, num_cols, figsize=(num_cols*4, num_rows*4),
+                                 gridspec_kw={'height_ratios': [1]*num_rows, 'hspace': 0.3})
             axes = axes.flatten()
-            for ch, ax in enumerate(axes[:-1]):  # for each channel  axes[:-1]
+            for ch in range(num_channels):
+                ax = axes[ch]
                 if cluster_mode:
                     # find clusters
                     c, p, mask = self.calc_clustering(tfr_ev, ch, kwargs)
@@ -711,170 +637,67 @@ class Input_Data:
                     tfr_ev.average().plot([ch], cmap="RdBu", cnorm=cnorm, axes=ax,
                                           colorbar=False, show=False, vlim=(-1.5, 1.5))
 
-                ax.set_title(epochs.ch_names[ch], fontsize=10)
-                ax.axvline(0, linewidth=1, color="black", linestyle=":")  # event
+                ax.set_title(tfr_ev.ch_names[ch], fontsize=10)
+                ax.axvline(3, linewidth=1, color="black", linestyle=":")  # event
                 if ch != 0:
                     ax.set_ylabel("")
                     ax.set_yticklabels("")
 
-            fig.colorbar(axes[0].images[-1], cax=axes[-1])
+            fig.colorbar(axes[0].images[-1], ax=axes, orientation='horizontal', fraction=0.025, pad=0.08)
             fig.suptitle(
-                f"ERDS - {event} hand {self.motor_mode} run {self.n_run} {self.dimension}")
+                f"{event} hand {self.ses_key} run {self.n_run}")
             fig.canvas.manager.set_window_title(event + " hand ERDS maps")
 
             timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-            plt.savefig('{}/erds_map_{}_run{}_{}_{}_{}{}_{}.png'.format(self.dir_plots,
-                                                                        self.motor_mode,
-                                                                        str(self.n_run),
-                                                                        self.dimension, event, picks[0],
-                                                                        picks[1], timestamp),
+            plt.savefig('{}erds_map_{}_run{}_{}_{}.png'.format(self.dir_plots,
+                                                                        self.ses_key,
+                                                                        str(self.n_run), event, timestamp),
                         format='png')
         if show_erds == True:
             plt.show()
 
-        if tfr_mode:
-            df = tfr.to_data_frame(time_format=None)
-            print(df.head())
-
-            df = tfr.to_data_frame(time_format=None, long_format=True)
-
-            # Map to frequency bands:
-            freq_bounds = {"_": 0, "delta": 3, "theta": 7, "alpha": 13, "beta": 35, "gamma": 140}
-            df["band"] = pd.cut(
-                df["freq"], list(freq_bounds.values()), labels=list(freq_bounds)[1:]
-            )
-
-            # Filter to retain only relevant frequency bands:
-            freq_bands_of_interest = ["alpha", "beta"]
-            df = df[df.band.isin(freq_bands_of_interest)]
-            df["band"] = df["band"].cat.remove_unused_categories()
-
-            # Order channels for plotting:
-            df["channel"] = df["channel"].cat.reorder_categories(picks, ordered=True)
-
-            g = sns.FacetGrid(df, row="band", col="channel", margin_titles=True)
-            g.map(sns.lineplot, "time", "value", "condition", n_boot=10)
-            axline_kw = dict(color="black", linestyle="dashed", linewidth=0.5, alpha=0.5)
-            g.map(plt.axhline, y=0, **axline_kw)
-            g.map(plt.axvline, x=3, **axline_kw)
-            g.set(ylim=(None, None))
-            g.set_axis_labels("Time (s)", "ERDS")
-            g.set_titles(col_template="{col_name}", row_template="{row_name}")
-            g.add_legend(ncol=2, loc="lower center")
-            g.fig.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.08)
-            plt.show()
-
-            df_mean = (
-                df.query("time > 0")
-                .groupby(["condition", "epoch", "band", "channel"], observed=False)[["value"]]
-                .mean()
-                .reset_index()
-            )
-
-            g = sns.FacetGrid(
-                df_mean, col="condition", col_order=["left", "right"], margin_titles=True
-            )
-            g = g.map(
-                sns.violinplot,
-                "channel",
-                "value",
-                "band",
-                cut=0,
-                palette="deep",
-                order=picks,
-                hue_order=freq_bands_of_interest,
-                linewidth=0.5,
-            ).add_legend(ncol=4, loc="lower center")
-
-            g.map(plt.axhline, **axline_kw)
-            g.set_axis_labels("", "ERDS")
-            g.set_titles(col_template="{col_name}", row_template="{row_name}")
-            g.fig.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.3)
-            plt.show()
-
-    def run_preprocessing_to_epoch(self):
+    def run_preprocessing(self, plt=False):
+        file_name = self.dir_subj_interim + 'ses' + self.ses_key + '_run' + str(self.n_run)
         self.create_raw()
+        self.raw.save(file_name + '-original-raw.fif', overwrite=True)
         self.raw_filt = self.raw.copy()
 
-        #self.visualize_raw()
-
-        self.raw_spatial_filtering()
-
-        self.raw_time_filtering()
-
-        #self.visualize_raw()
-
-        self.raw_ica()
+        self.raw_spatial_filtering(self.raw_filt)
+        self.raw_time_filtering(self.raw_filt)
+        self.raw_filt = self.raw_ica(self.raw_filt)
 
         self.create_annotations()
         self.raw.set_annotations(self.annotations)
         self.raw_filt.set_annotations(self.annotations)
 
-        #self.visualize_raw()
-        self.raw_filt.save(self.dir_epochs + '/run' + str(self.n_run) + '-raw.fif', overwrite=True)
+        self.raw_filt.save(file_name + '-preproc-raw.fif', overwrite=True)
 
-        alpha_freq = [8, 12]
-        self.alpha_band = self.get_frequency_band(alpha_freq)
-        beta_freq = [16, 24]
-        self.beta_band = self.get_frequency_band(beta_freq)
+        # all frequencies
+        self.epochs = self.create_epochs(self.raw_filt)
+        self.epochs.save(file_name + '-epo.fif', overwrite=True)
+        #self.evoked_left = self.epochs['1'].average()
+        #self.evoked_left.save(file_name + '-LEFT-ave.fif', overwrite=True)
+        #self.evoked_right = self.epochs['2'].average()
+        #self.evoked_right.save(file_name + '-RIGHT-ave.fif', overwrite=True)
 
-        self.create_epochs(sig='raw', visualize_epochs=False)
-        self.create_epochs(sig='alpha', visualize_epochs=False)
-        self.create_epochs(sig='beta', visualize_epochs=False)
-        #self.create_evoked()
-        #self.visualize_evoked()
+        # alpha band
+        self.alpha_band = self.get_frequency_band([8, 12])
+        self.epochs_alpha = self.create_epochs(self.alpha_band)
+        self.epochs_alpha.save(file_name + '-alpha-epo.fif', overwrite=True)
+        #evoked_left_alpha = self.epochs['1'].average()
+        #evoked_left_alpha.save(file_name + '-LEFT-alpha-ave.fif', overwrite=True)
+        #evoked_right_alpha = self.epochs['2'].average()
+        #evoked_right_alpha.save(file_name + '-RIGHT-alpha-ave.fif', overwrite=True)
 
-        #return epochs_l, epochs_r
+        # beta band
+        self.beta_band = self.get_frequency_band([16, 24])
+        self.epochs_beta = self.create_epochs(self.beta_band)
+        self.epochs_beta.save(file_name + '-beta-epo.fif', overwrite=True)
+        #evoked_left_beta = self.epochs['1'].average()
+        #evoked_left_beta.save(file_name + '-LEFT-beta-ave.fif', overwrite=True)
+        #evoked_right_beta = self.epochs['2'].average()
+        #evoked_right_beta.save(file_name + '-RIGHT-beta-ave.fif', overwrite=True)
 
-    def run_raw(self):
-        self.create_raw()
-        self.raw_filt = self.raw.copy()
-        #self.raw_spatial_filtering()
-
-        self.raw_time_filtering()
-        #self.raw_time_filtering_options()
-        #self.filter_by_sample()
-
-        self.create_annotations()
-        self.raw.set_annotations(self.annotations)
-        self.raw_filt.set_annotations(self.annotations)
-        self.create_epochs(sig='raw', visualize_epochs=False)
-
-    def preprocess_raw(self):
-        self.create_raw()
-        self.raw_filt = self.raw.copy()
-        self.raw_spatial_filtering()
-        self.raw_time_filtering()
-        self.raw_ica()
-
-        #self.raw_filt.save(self.dir_preproc + '/run' + str(self.n_run) + '-' + '_preproc-raw.fif', overwrite=True)
-
-        #self.raw.plot_psd()
-        #self.raw_filt.plot_psd()
-        #plt.show()
-
-        self.plot_erds_maps(preproc_data=False, tfr_mode=True)
-        self.plot_erds_maps(preproc_data=True, tfr_mode=True)
-
-    def run_preprocessing_to_fif(self):
-        self.create_raw()
-        raw_filename = self.dir_preproc + '/run' + str(self.n_run) + '_original-raw.fif'
-        self.raw_filt.save(raw_filename, overwrite=True)
-
-        self.raw_filt = self.raw.copy()
-        self.raw_spatial_filtering()
-        self.raw_time_filtering()
-        self.raw_ica()
-
-        preproc_filename = self.dir_preproc + '/run' + str(self.n_run) + '_preproc-raw.fif'
-        self.raw_filt.save(preproc_filename, overwrite=True)
-        print(f"Preprocessed raw data saved to {self.dir_preproc}/run{str(self.n_run)}")
-        return preproc_filename
-
-
-
-
-
-
-
+        if plt:
+            self.plot_erds_maps(self.epochs)
 
