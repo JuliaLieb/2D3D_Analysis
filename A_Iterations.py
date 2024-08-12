@@ -73,26 +73,26 @@ if __name__ == "__main__":
 
     ### ----- DATA FOR TESTING ----- ###
     ''' # Subjects 14-17
-    subject_list = ['S14', 'S15', 'S16', 'S17']
-    mon_mi = [1, 2, 1, 2]
-    vr_mi = [2, 1, 2, 1]
+    subject_list = ['S5', 'S6', 'S7', 'S8', 'S9', 'S10', 'S11', 'S12', 'S13', 'S14', 'S15', 'S16', 'S17']
+    mon_mi = [1, 2, 2, 1, 2, 1, 1, 2, 2, 1, 2, 1, 2]
+    vr_mi = [2, 1, 1, 2, 1, 2, 2, 1, 1, 2, 1, 2, 1]
     '''
-    #''' # Subject 14
+    ''' # Subject 14
     subject_list = ['S14']
     mon_mi = [1]
     vr_mi = [2]
-    #'''
+    '''
     conditions = {'Control': mon_me, 'Monitor': mon_mi, 'VR': vr_mi}
     roi = ["F3", "F4", "C3", "C4", "P3", "P4"]
     task = ['MI left', 'MI right']
     #freq = 'alpha'
     #freq_band=[8, 12]
-    freq = 'beta'
-    freq_band = [16, 24]
+    #freq = 'beta'
+    #freq_band = [16, 24]
 
 
 # %% create raw, preproc, and epochs (raw, alpha, beta) for all subjects
-    #"""
+    """
     for subj_ix, subj in enumerate(subject_list):
         interim_subj_path = interim_path + subj + '/'
         if not os.path.exists(interim_subj_path):
@@ -112,42 +112,43 @@ if __name__ == "__main__":
                           f'file {cur_config} . Exception: {e}')
                     continue
 
-    #"""
+    """
 
 
     # %% iterate to combine epochs per subject and plot ERDS maps
     #"""
     for subj_ix, subj in enumerate(subject_list):
+        print(f"\n \n --------------- Subject {subj} ---------------")
         interim_subj_path = interim_path + subj + '/'
         epochs_VR = []
         epochs_Mon = []
         epochs_Con = []
-        for ses_key, ses_values in conditions.items():
-            ses_ix = ses_values[subj_ix]
-            subject_data_path = data_path + subj + '-ses' + str(ses_ix) + '/'
-            epoch_files_raw, epoch_files_alpha, epoch_files_beta = find_epoch_files(interim_subj_path)
-            for cur_epoch in epoch_files_raw:
-                #print(f"\n \n --------------- Session {ses_key} Run {run} ---------------")
-                epoch = mne.read_epochs(cur_epoch, preload=True)
-                if cur_epoch.startswith(interim_subj_path + 'sesVR'):
-                    epochs_VR.append(epoch)
-                if cur_epoch.startswith(interim_subj_path + 'sesMonitor'):
-                    epochs_Mon.append(epoch)
-                if cur_epoch.startswith(interim_subj_path + 'sesControl'):
-                    epochs_Con.append(epoch)
+        #for ses_key, ses_values in conditions.items():
+        #    ses_ix = ses_values[subj_ix]
+        #    subject_data_path = data_path + subj + '-ses' + str(ses_ix) + '/'
+        epoch_files_raw, epoch_files_alpha, epoch_files_beta = find_epoch_files(interim_subj_path)
+        for cur_epoch in epoch_files_raw:
+            print(f"\n \n --------------- Epochs from {cur_epoch} ---------------")
+            epoch = mne.read_epochs(cur_epoch, preload=True)
+            if cur_epoch.startswith(interim_subj_path + 'sesVR'):
+                epochs_VR.append(epoch)
+            if cur_epoch.startswith(interim_subj_path + 'sesMonitor'):
+                epochs_Mon.append(epoch)
+            if cur_epoch.startswith(interim_subj_path + 'sesControl'):
+                epochs_Con.append(epoch)
 
-            combined_epochs_VR = mne.concatenate_epochs(epochs_VR)
-            combined_epochs_Mon = mne.concatenate_epochs(epochs_Mon)
-            combined_epochs_Con = mne.concatenate_epochs(epochs_Con)
-            print(f'Number of epochs: Control - {len(combined_epochs_Con)}, Monitor - {len(combined_epochs_Mon)}, '
-                  f'VR - {len(combined_epochs_VR)}')
-            # '''
-            C_ERDS.plot_erds_maps(combined_epochs_VR, picks=roi, t_min=0, t_max=11.25, path=interim_subj_path+'plots/',
-                                  session='VR', cluster_mode=True)
-            C_ERDS.plot_erds_maps(combined_epochs_Mon, picks=roi, t_min=0, t_max=11.25, path=interim_subj_path+'plots/',
-                                  session='Monitor', cluster_mode=True)
-            C_ERDS.plot_erds_maps(combined_epochs_Con, picks=roi, t_min=0, t_max=11.25, path=interim_subj_path+'plots/',
-                                  session='Control', cluster_mode=True)
+        combined_epochs_VR = mne.concatenate_epochs(epochs_VR)
+        combined_epochs_Mon = mne.concatenate_epochs(epochs_Mon)
+        combined_epochs_Con = mne.concatenate_epochs(epochs_Con)
+        print(f'Number of epochs: Control - {len(combined_epochs_Con)}, Monitor - {len(combined_epochs_Mon)}, '
+              f'VR - {len(combined_epochs_VR)}')
+        # '''
+        C_ERDS.plot_erds_maps(combined_epochs_VR, picks=roi, t_min=0, t_max=11.25, path=interim_subj_path+'plots/',
+                              session='VR', cluster_mode=True)
+        C_ERDS.plot_erds_maps(combined_epochs_Mon, picks=roi, t_min=0, t_max=11.25, path=interim_subj_path+'plots/',
+                              session='Monitor', cluster_mode=True)
+        C_ERDS.plot_erds_maps(combined_epochs_Con, picks=roi, t_min=0, t_max=11.25, path=interim_subj_path+'plots/',
+                              session='Control', cluster_mode=True)
 
         # '''
         #compute_erds(combined_epochs_VR, roi, fs=500, t_min=0, f_min=0, f_max=50, path="C:/2D3D_Analysis/Results/")
