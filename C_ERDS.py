@@ -19,6 +19,9 @@ from matplotlib.colors import TwoSlopeNorm
 from mne.stats import permutation_cluster_1samp_test as pcluster_test
 from mne.time_frequency import tfr_multitaper
 import winsound
+from scipy.stats import spearmanr
+from sklearn.preprocessing import MinMaxScaler
+from matplotlib.colors import LinearSegmentedColormap
 
 
 def calc_clustering(tfr_ev, ch, kwargs):
@@ -93,6 +96,7 @@ def plot_erds_maps(epochs, picks, t_min, t_max, path, session, show_erds=False, 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
         plt.savefig('{}/erds_map_ses{}_{}_hand_{}.png'.format(path, session, event, timestamp),
                     format='png')
+        plt.close(fig)
     if show_erds == True:
         plt.show()
 
@@ -156,7 +160,8 @@ def plot_erds_maps(epochs, picks, t_min, t_max, path, session, show_erds=False, 
         g.fig.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.3)
         plt.show()
 
-def calc_inter_intra_erds(epochs, picks, t_min, t_max, freq):
+
+def calc_avg_erds_per_subj(epochs, picks, t_min, t_max, freq, avg_rois=False):
     freqs = np.arange(freq[0], freq[1]+1)
     start_time = 4.25
     end_time = 11.25
@@ -174,34 +179,126 @@ def calc_inter_intra_erds(epochs, picks, t_min, t_max, freq):
     start_idx = np.argmin(np.abs(times - start_time))
     end_idx = np.argmin(np.abs(times - end_time))
 
-    tfr_ev_l = tfr['Left']
+    tfr_ev_l = tfr['left']
     selected_data_l = tfr_ev_l.data[:, :, :, start_idx:end_idx]
     # Average over the selected time interval and all frequencies
     avg_over_time_l = np.mean(selected_data_l, axis=-1)
     avg_over_freq_and_time_l = np.mean(avg_over_time_l, axis=2)
     final_avg_l = np.mean(avg_over_freq_and_time_l, axis=0)
 
-    tfr_ev_r = tfr['Right']
+    tfr_ev_r = tfr['right']
     selected_data_r = tfr_ev_r.data[:, :, :, start_idx:end_idx]
     # Average over the selected time interval and all frequencies
     avg_over_time_r = np.mean(selected_data_r, axis=-1)
     avg_over_freq_and_time_r = np.mean(avg_over_time_r, axis=2)
     final_avg_r = np.mean(avg_over_freq_and_time_r, axis=0)
 
-    return final_avg_l, final_avg_r
+    if avg_rois:
+        roi_avg_l = np.mean(final_avg_l, axis=0)
+        roi_avg_r = np.mean(final_avg_r, axis=0)
+        return roi_avg_l, roi_avg_r
+    else:
+        return final_avg_l, final_avg_r
 
-def plot_inter_intra_erds(avg_erds, roi, condition, cl, freq):
+def plot_inter_intra_erds(avg_erds, roi, session, cl, freq, path):
     vmin, vmax = -1, 1.5  # set min and max ERDS values in plot
     cnorm = TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax)
     plt.figure(figsize=(8, 6))
-    plt.imshow(avg_erds, cmap="RdBu", aspect='auto', norm=cnorm)  # cmap="viridis"
-    plt.colorbar(label='ERD/S')
-    plt.title(f'ERD/S magnitudes per subject and ROI:\n{condition} {cl}, {freq} frequency band')
-    plt.xlabel('ROIs')
+    plt.imshow(avg_erds, cmap="RdYlBu", aspect='auto', norm=cnorm)  # cmap="viridis"
+    plt.colorbar(label='ERD/S (%)')
+    plt.title(f'{session} {cl}')
+    plt.xlabel(f'{freq} frequency band')
     plt.ylabel('Subjects')
 
     plt.xticks(np.arange(6), roi)
     plt.yticks(np.arange(17), [f'Sub{i + 1}' for i in range(17)])
 
-    # Show the plot
-    plt.show()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+    plt.savefig('{}/erds_magnitudes_ses{}_{}_hand_{}_{}.png'.format(path, session, cl, freq, timestamp),
+                format='png')
+
+
+def plot_erds_topo(evoked, freq, freq_band, baseline, path, session, cl):
+    freqs = np.linspace(freq_band[0], freq_band[1], 10)  # Frequenzen von bis
+    vmin, vmax = -1, 1.5
+    cnorm = TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax)  # min, center, and max ERDS
+
+    tfr = evoked.compute_tfr(method="multitaper", freqs=freqs, n_cycles=freqs/2, use_fft=True)
+    tfr.apply_baseline(baseline, mode='percent')
+
+    fig = tfr.plot_topomap(ch_type="eeg", tmin=4.25, tmax=11.25, show=False, cmap="RdBu", vlim=(vmin, vmax),
+                           cnorm=cnorm, contours=10, size=4)
+    fig.suptitle(f"{session} - {cl} hand / {freq} ({freq_band[0]} - {freq_band[1]} Hz)", fontsize=10)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+    fig.savefig('{}/erds_topo_ses{}_{}_hand_{}_{}.png'.format(path, session, cl, freq, timestamp),
+                format='png')
+
+
+def run_spearman(data, subjects, title, freq, path=None):
+    '''
+    Runs spearman's correlation between subjects.'
+    Args:
+        data: ndarray size (len(subjects), 6 rois)
+        subjects: list of str
+
+    Returns: saved plot
+
+    '''
+
+    # Calculate Spearman correlation matrix and pairwise distance
+    corr_matrix = np.zeros((len(subjects), len(subjects)))
+    distance_matrix = np.zeros((len(subjects), len(subjects)))
+    for i in range(data.shape[0]):
+        for j in range(data.shape[0]):
+            if i != j:  # No need to correlate a subject with itself
+                corr, _ = spearmanr(data[i], data[j])
+                corr_matrix[i, j] = corr
+                distance_matrix[i, j] = 1 - corr
+            else:
+                corr_matrix[i, j] = 1  # Self-correlation is always 1
+                distance_matrix[i, j] = 0  # Distance to self is 0
+
+    # Mask to only rank lower half of matrix - minimize errors due to ranking
+    mask = np.triu(np.ones_like(distance_matrix, dtype=bool), k=1)
+    masked_distance_matrix = np.where(mask, np.nan, distance_matrix)
+
+    # Flatten the distance matrix for ranking
+    flat_distances = masked_distance_matrix.flatten()
+
+    # Rank the distances
+    ranked_distances = np.argsort(np.argsort(flat_distances))
+
+    # Reshape to the original distance matrix shape
+    ranked_matrix = ranked_distances.reshape(distance_matrix.shape)
+
+    # Scale the ranked distances between 0 and 1
+    scaler = MinMaxScaler()
+    scaled_ranked_matrix_half = scaler.fit_transform(ranked_matrix)
+
+    # Mirror lower half to upper half of matrix
+    results = np.zeros((len(subjects), len(subjects)))
+    for i in range(data.shape[0]):
+        for j in range(data.shape[0]):
+            if i >= j:
+                results[i, j] = scaled_ranked_matrix_half[i, j]
+            elif i < j:
+                results[i, j] = scaled_ranked_matrix_half[j, i]
+
+    # Create DataFrames for better visualization
+    scaled_distance_df = pd.DataFrame(results, index=subjects, columns=subjects)
+
+    # Plotting the scaled distance heatmap
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(scaled_distance_df, annot=False, fmt=".2f", cmap="RdYlBu", linewidths=0.5, square=True,
+                cbar_kws={"shrink": .75})
+    plt.title(title)
+    plt.xticks(rotation=45)
+    plt.yticks(rotation=0)
+    plt.tight_layout()
+
+    if path is not None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        plt.savefig('{}/spearman_{}_{}_{}.png'.format(path, title, freq, timestamp),
+                    format='png')
+    else:
+        plt.show()
