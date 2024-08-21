@@ -23,10 +23,10 @@ import C_ERDS
 
 ######## WHAT TO DO ########
 preproc = False  # create raw, preproc, and epochs (raw, alpha, beta) for all subjects
-erds_per_subj = False  # iterate to combine epochs plot ERDS maps per subject
+erds_per_subj = True  # iterate to combine epochs plot ERDS maps per subject
 topo_per_condition = False  # combine epochs of all subjects to evoked for conditions - plot topo map
-calc_avg_erds_values = True  # iterate to combine epochs per condition and calculate avg ERDS
-save_stat_erds = True  # sort and save data for statistical analysis from ERDS values
+calc_avg_erds_values = False  # iterate to combine epochs per condition and calculate avg ERDS
+save_stat_erds = False  # sort and save data for statistical analysis from ERDS values
 plt_inter_intra = False  # plot inter- and intra-individual ERDS values
 calc_spearman = False  # calculate and plot spearman correlation matrix
 ############################
@@ -81,23 +81,23 @@ if __name__ == "__main__":
     vr_mi = [1, 2, 2, 1, 2, 1, 1, 2, 1, 2, 2, 1, 1, 2, 1, 2, 1] #S1-17
 
     ### ----- DATA FOR TESTING ----- ###
-    ''' # Subjects 14-17
-    subject_list = ['S7', 'S8', 'S9', 'S10', 'S11', 'S12', 'S13', 'S14', 'S15', 'S16', 'S17']
-    mon_mi = [2, 1, 2, 1, 1, 2, 2, 1, 2, 1, 2]
-    vr_mi = [1, 2, 1, 2, 2, 1, 1, 2, 1, 2, 1]
-    '''
+    #''' # Subjects 14-17
+    subject_list = ['S1', 'S2', 'S3', 'S6', 'S7', 'S8', 'S9', 'S10', 'S11', 'S12', 'S13', 'S14', 'S15', 'S16', 'S17']
+    mon_mi = [2, 1, 1, 2, 2, 1, 2, 1, 1, 2, 2, 1, 2, 1, 2]
+    vr_mi = [1, 2, 2, 1, 1, 2, 1, 2, 2, 1, 1, 2, 1, 2, 1]
+    #'''
     ''' # Subject 14
-    subject_list = ['S14']
+    subject_list = ['S5']
     mon_mi = [1]
     vr_mi = [2]
     '''
     conditions = {'Control': mon_me, 'Monitor': mon_mi, 'VR': vr_mi}
     roi = ["F3", "F4", "C3", "C4", "P3", "P4"]
-    task = ['MI left', 'MI right']
-    #freq = 'alpha'
-    #freq_band=[8, 12]
-    freq = 'beta'
-    freq_band = [16, 24]
+    task = ['left', 'right']
+    freq = 'alpha'
+    freq_band=[8, 13]
+    #freq = 'beta'
+    #freq_band = [16, 24]
 
 
     # %% create raw, preproc, and epochs (raw, alpha, beta) for all subjects
@@ -203,12 +203,13 @@ if __name__ == "__main__":
         evoked_left_Con = mne.combine_evoked(all_evoked_left_Con, weights='nave')
         evoked_right_Con = mne.combine_evoked(all_evoked_right_Con, weights='nave')
 
-        C_ERDS.plot_erds_topo(evoked_left_VR, freq, freq_band, (1.5, 3), interim_path, 'VR', 'left')
-        C_ERDS.plot_erds_topo(evoked_right_VR, freq, freq_band, (1.5, 3), interim_path, 'VR', 'right')
-        C_ERDS.plot_erds_topo(evoked_left_Mon, freq, freq_band, (1.5, 3), interim_path, 'Monitor', 'left')
-        C_ERDS.plot_erds_topo(evoked_right_Mon, freq, freq_band, (1.5, 3), interim_path, 'Monitor', 'right')
-        C_ERDS.plot_erds_topo(evoked_left_Con, freq, freq_band, (1.5, 3), interim_path, 'Control', 'left')
-        C_ERDS.plot_erds_topo(evoked_right_Con, freq, freq_band, (1.5, 3), interim_path, 'Control', 'right')
+        C_ERDS.plot_erds_topo(evoked_left_VR, evoked_right_VR, freq, freq_band, (1.5, 3), [4.25, 6],
+                              interim_path, 'VR')
+        C_ERDS.plot_erds_topo(evoked_left_Mon, evoked_right_Mon, freq, freq_band, (1.5, 3), [4.25, 6],
+                              interim_path, 'Monitor')
+        C_ERDS.plot_erds_topo(evoked_left_Con, evoked_right_Con, freq, freq_band, (1.5, 3), [4.25, 6],
+                              interim_path, 'Control')
+
 
     # %% iterate to combine epochs per condition and calculate avg ERDS
     # prerequisite: epoch files in interim_subj_path
@@ -254,22 +255,22 @@ if __name__ == "__main__":
 
             # per ROI
             avg_erds_VR_l[subj_ix, :], avg_erds_VR_r[subj_ix, :] = C_ERDS.calc_avg_erds_per_subj(combined_epochs_VR,
-                                                                                                picks=roi, t_min=0,
-                                                                                                t_max=11.25,
+                                                                                                picks=roi, start_time=4.25,
+                                                                                                end_time=11.25,
                                                                                                 freq=freq_band)
             avg_erds_Mon_l[subj_ix, :], avg_erds_Mon_r[subj_ix, :] = C_ERDS.calc_avg_erds_per_subj(combined_epochs_Mon,
-                                                                                                  picks=roi, t_min=0,
-                                                                                                  t_max=11.25,
+                                                                                                  picks=roi, start_time=4.25,
+                                                                                                  end_time=11.25,
                                                                                                   freq=freq_band)
             # averaged ROIs
             avg_erds_ME_l[subj_ix, :], avg_erds_ME_r[subj_ix, :] = C_ERDS.calc_avg_erds_per_subj(combined_epochs_ME,
-                                                                                                picks=roi, t_min=0,
-                                                                                                t_max=11.25,
+                                                                                                picks=roi, start_time=4.25,
+                                                                                                end_time=11.25,
                                                                                                 freq=freq_band,
                                                                                                 avg_rois=True)
             avg_erds_MI_l[subj_ix, :], avg_erds_MI_r[subj_ix, :] = C_ERDS.calc_avg_erds_per_subj(combined_epochs_MI,
-                                                                                                picks=roi, t_min=0,
-                                                                                                t_max=11.25,
+                                                                                                picks=roi, start_time=4.25,
+                                                                                                end_time=11.25,
                                                                                                 freq=freq_band,
                                                                                                 avg_rois=True)
         # save per ROI
@@ -306,7 +307,7 @@ if __name__ == "__main__":
         for ses in cond:
             for tsk in task:
                 for ch in roi:
-                    descr = ses + ' ' + tsk + ' ' + ch
+                    descr = ses + ' MI ' + tsk + ' ' + ch
                     header.append(descr)
 
         result_erds = np.concatenate((avg_erds_Mon_l, avg_erds_Mon_r, avg_erds_VR_l, avg_erds_VR_r), axis=1)

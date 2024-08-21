@@ -106,7 +106,7 @@ if __name__ == "__main__":
         'Cue': 20,
         'Feedback': 30,
         'End_of_Trial': 5, # equal to break
-        'Session_Start': 4,
+        'Session_Start': 0,
         'Session_End': 3}
     # Manage markers
     marker_interpol = SUB_trial_management.interpolate_markers(marker_ids, marker_dict, marker_instants, eeg_instants)

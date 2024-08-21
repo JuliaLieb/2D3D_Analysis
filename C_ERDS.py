@@ -22,6 +22,7 @@ import winsound
 from scipy.stats import spearmanr
 from sklearn.preprocessing import MinMaxScaler
 from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.ticker import FormatStrFormatter
 
 
 def calc_clustering(tfr_ev, ch, kwargs):
@@ -59,8 +60,8 @@ def plot_erds_maps(epochs, picks, t_min, t_max, path, session, show_erds=False, 
         num_channels = len(picks)
         num_cols = 2
         num_rows = int(np.ceil(num_channels/num_cols))
-        fig, axes = plt.subplots(num_rows, num_cols, figsize=(num_cols*4, num_rows*4),
-                                 gridspec_kw={'height_ratios': [1]*num_rows, 'hspace': 0.3})
+        fig, axes = plt.subplots(num_rows, num_cols, figsize=(num_cols*5, num_rows*3),
+                                 gridspec_kw={'height_ratios': [1]*num_rows, 'hspace': 0.25})
         axes = axes.flatten()
 
         for ch in range(num_channels):
@@ -83,14 +84,17 @@ def plot_erds_maps(epochs, picks, t_min, t_max, path, session, show_erds=False, 
             if ch in [1, 3, 5]:
                 ax.set_ylabel("")
                 ax.set_yticklabels("")
+            if ch in [0, 1, 2, 3]:
+                ax.set_xlabel("")
+                ax.set_xticklabels("")
 
         # Remove any extra axes that may not be used
         for idx in range(num_channels, len(axes)):
             fig.delaxes(axes[idx])
 
-        fig.colorbar(axes[0].images[-1], ax=axes, orientation='horizontal', fraction=0.025, pad=0.08)
-        #fig.colorbar(axes[0].images[-1], cax=axes[-1])
-        fig.suptitle(f"{session} - {event} Hand")  #{data_from_mat.motor_mode} run {data_from_mat.n_run} {data_from_mat.dimension}")
+        cbar = fig.colorbar(axes[0].images[-1], ax=axes, orientation='horizontal', fraction=0.025, pad=0.08,)
+        cbar.set_label("ERD/S (%)")
+        #fig.suptitle(f"{session} - {event}")
         fig.canvas.manager.set_window_title(event + " hand ERDS maps")
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
@@ -161,10 +165,11 @@ def plot_erds_maps(epochs, picks, t_min, t_max, path, session, show_erds=False, 
         plt.show()
 
 
-def calc_avg_erds_per_subj(epochs, picks, t_min, t_max, freq, avg_rois=False):
+def calc_avg_erds_per_subj(epochs, picks, start_time, end_time, freq, avg_rois=False):
     freqs = np.arange(freq[0], freq[1]+1)
-    start_time = 4.25
-    end_time = 11.25
+    t_min = 0
+    t_max = 11.25
+
 
     baseline = [1.5, 3]  # baseline interval (in s)
 
@@ -217,21 +222,43 @@ def plot_inter_intra_erds(avg_erds, roi, session, cl, freq, path):
     plt.savefig('{}/erds_magnitudes_ses{}_{}_hand_{}_{}.png'.format(path, session, cl, freq, timestamp),
                 format='png')
 
-
-def plot_erds_topo(evoked, freq, freq_band, baseline, path, session, cl):
-    freqs = np.linspace(freq_band[0], freq_band[1], 10)  # Frequenzen von bis
-    vmin, vmax = -1, 1.5
+def plot_erds_topo(evoked_l, evoked_r, freq, freq_band, baseline, timespan, path, session):
+    freqs = np.linspace(freq_band[0], freq_band[1], 10)  # Frequencies from start to end
+    vmin, vmax = -100, 150
     cnorm = TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax)  # min, center, and max ERDS
 
-    tfr = evoked.compute_tfr(method="multitaper", freqs=freqs, n_cycles=freqs/2, use_fft=True)
-    tfr.apply_baseline(baseline, mode='percent')
+    # left hand
+    tfr_l = evoked_l.compute_tfr(method="multitaper", freqs=freqs, n_cycles=freqs/2, use_fft=True)
+    tfr_l.apply_baseline(baseline, mode='percent')
+    tfr_l.data *= 100  # percentage
 
-    fig = tfr.plot_topomap(ch_type="eeg", tmin=4.25, tmax=11.25, show=False, cmap="RdBu", vlim=(vmin, vmax),
-                           cnorm=cnorm, contours=10, size=4)
-    fig.suptitle(f"{session} - {cl} hand / {freq} ({freq_band[0]} - {freq_band[1]} Hz)", fontsize=10)
+    # right hand
+    tfr_r = evoked_r.compute_tfr(method="multitaper", freqs=freqs, n_cycles=freqs/2, use_fft=True)
+    tfr_r.apply_baseline(baseline, mode='percent')
+    tfr_r.data *= 100  # percentage
+
+    # figure with two subplots side by side
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4))  # Adjust figsize as needed
+
+    # Plot left hand
+    im_l = tfr_l.plot_topomap(ch_type="eeg", tmin=timespan[0], tmax=timespan[1], axes=axes[0], show=False,
+                              cmap="RdBu", vlim=(vmin, vmax), cnorm=cnorm, contours=10, size=4, colorbar=False,
+                              units='ERD/S in %', cbar_fmt='%d')
+    axes[0].set_title("left", fontsize=10)
+
+    # Plot right hand
+    im_r = tfr_r.plot_topomap(ch_type="eeg", tmin=timespan[0], tmax=timespan[1], axes=axes[1], show=False,
+                              cmap="RdBu", vlim=(vmin, vmax), cnorm=cnorm, contours=10, size=4, colorbar=True,
+                              units='ERD/S in %', cbar_fmt='%d')
+    axes[1].set_title("right", fontsize=10)
+
+
+    # Save the figure
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    fig.savefig('{}/erds_topo_ses{}_{}_hand_{}_{}.png'.format(path, session, cl, freq, timestamp),
-                format='png')
+    fig.savefig('{}/erds_topo_ses{}__{}_{}.png'.format(path, session, freq, timestamp),
+                format='png', dpi=300)
+
+    #plt.show()
 
 
 def run_spearman(data, subjects, title, freq, path=None):
