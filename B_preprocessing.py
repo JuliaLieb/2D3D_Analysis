@@ -689,10 +689,10 @@ class Measurement_Data:
         #evoked_right_alpha = self.epochs['2'].average()
         #evoked_right_alpha.save(file_name + '-RIGHT-alpha-ave.fif', overwrite=True)
 
-        '''# beta band
+        # beta band
         self.beta_band = self.get_frequency_band([16, 24])
         self.epochs_beta = self.create_epochs(self.beta_band)
-        self.epochs_beta.save(file_name + '-beta-epo.fif', overwrite=True)'''
+        self.epochs_beta.save(file_name + '-beta-epo.fif', overwrite=True)
         #evoked_left_beta = self.epochs['1'].average()
         #evoked_left_beta.save(file_name + '-LEFT-beta-ave.fif', overwrite=True)
         #evoked_right_beta = self.epochs['2'].average()

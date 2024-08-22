@@ -81,15 +81,15 @@ if __name__ == "__main__":
     vr_mi = [1, 2, 2, 1, 2, 1, 1, 2, 1, 2, 2, 1, 1, 2, 1, 2, 1] #S1-17
 
     ### ----- DATA FOR TESTING ----- ###
-    #''' # Subjects 14-17
+    ''' # some subjects
     subject_list = ['S1', 'S2', 'S3', 'S6', 'S7', 'S8', 'S9', 'S10', 'S11', 'S12', 'S13', 'S14', 'S15', 'S16', 'S17']
     mon_mi = [2, 1, 1, 2, 2, 1, 2, 1, 1, 2, 2, 1, 2, 1, 2]
     vr_mi = [1, 2, 2, 1, 1, 2, 1, 2, 2, 1, 1, 2, 1, 2, 1]
-    #'''
-    ''' # Subject 14
-    subject_list = ['S5']
-    mon_mi = [1]
-    vr_mi = [2]
+    '''
+    ''' # single subject
+    subject_list = ['S1']
+    mon_mi = [2]
+    vr_mi = [1]
     '''
     conditions = {'Control': mon_me, 'Monitor': mon_mi, 'VR': vr_mi}
     roi = ["F3", "F4", "C3", "C4", "P3", "P4"]
@@ -152,11 +152,11 @@ if __name__ == "__main__":
                   f'VR - {len(combined_epochs_VR)}')
             #'''
             C_ERDS.plot_erds_maps(combined_epochs_VR, picks=roi, t_min=0, t_max=11.25, path=interim_subj_path+'plots/',
-                                  session='VR', cluster_mode=True)
+                                  session='VR', subject=subj, cluster_mode=True)
             C_ERDS.plot_erds_maps(combined_epochs_Mon, picks=roi, t_min=0, t_max=11.25, path=interim_subj_path+'plots/',
-                                  session='Monitor', cluster_mode=True)
+                                  session='Monitor', subject=subj, cluster_mode=True)
             C_ERDS.plot_erds_maps(combined_epochs_Con, picks=roi, t_min=0, t_max=11.25, path=interim_subj_path+'plots/',
-                                  session='Control', cluster_mode=True)
+                                  session='Control', subject=subj, cluster_mode=True)
             #'''
 
     # %% combine epochs to evoked for conditions - plot topo map
@@ -334,19 +334,28 @@ if __name__ == "__main__":
             np.savetxt(file, result_erds, delimiter=',')
 
     # %% plot inter- and intra-individual ERDS values
-    # prerequisite: file per condition (VR, Monitor) for erds per subject and ROI
+    # prerequisite: file per condition (VR, Monitor) and frequency (alpha, beta) for erds per subject and ROI
     # results: plot of inter- and intra-individual ERDS values at interim_path
-    if plt_inter_intra:
-        # load per ROI
-        avg_erds_VR_l = np.load(interim_path + f'magnitudes_erds_VR_l_{freq}.npy')
-        avg_erds_VR_r = np.load(interim_path + f'magnitudes_erds_VR_r_{freq}.npy')
-        avg_erds_Mon_l = np.load(interim_path + f'magnitudes_erds_Mon_l_{freq}.npy')
-        avg_erds_Mon_r = np.load(interim_path + f'magnitudes_erds_Mon_r_{freq}.npy')
 
-        C_ERDS.plot_inter_intra_erds(avg_erds_VR_l, roi, session='VR', cl='Left Hand', freq=freq, path=interim_path)
-        C_ERDS.plot_inter_intra_erds(avg_erds_VR_r, roi, session='VR', cl='Right Hand', freq=freq, path=interim_path)
-        C_ERDS.plot_inter_intra_erds(avg_erds_Mon_l, roi, session='Monitor', cl='Left Hand', freq=freq, path=interim_path)
-        C_ERDS.plot_inter_intra_erds(avg_erds_Mon_r, roi, session='Monitor', cl='Right Hand', freq=freq, path=interim_path)
+    if plt_inter_intra:
+
+        # load per ROI
+        avg_erds_VR_l_a = np.load(interim_path + f'magnitudes_erds_VR_l_alpha.npy')
+        avg_erds_VR_r_a = np.load(interim_path + f'magnitudes_erds_VR_r_alpha.npy')
+        avg_erds_Mon_l_a = np.load(interim_path + f'magnitudes_erds_Mon_l_alpha.npy')
+        avg_erds_Mon_r_a = np.load(interim_path + f'magnitudes_erds_Mon_r_alpha.npy')
+        avg_erds_VR_l_b = np.load(interim_path + f'magnitudes_erds_VR_l_beta.npy')
+        avg_erds_VR_r_b = np.load(interim_path + f'magnitudes_erds_VR_r_beta.npy')
+        avg_erds_Mon_l_b = np.load(interim_path + f'magnitudes_erds_Mon_l_beta.npy')
+        avg_erds_Mon_r_b = np.load(interim_path + f'magnitudes_erds_Mon_r_beta.npy')
+
+        list_avg_erds = [[avg_erds_Mon_l_a, avg_erds_Mon_l_b], [avg_erds_Mon_r_a, avg_erds_Mon_r_b],
+                         [avg_erds_VR_l_a, avg_erds_VR_l_b], [avg_erds_VR_r_a, avg_erds_VR_r_b]]
+        sessions = ['Monitor', 'Monitor', 'VR', 'VR']
+        cls = ['left', 'right', 'left', 'right']
+        frequencies = ['alpha', 'beta']
+        C_ERDS.plot_inter_intra_erds_subplot(list_avg_erds, roi, sessions, cls, frequencies, path=interim_path)
+
 
     # %% calculate and plot spearman correlation matrix
     # prerequisite: file per condition (VR, Monitor) for erds per subject and ROI
@@ -358,11 +367,15 @@ if __name__ == "__main__":
         avg_erds_Mon_l = np.load(interim_path + f'magnitudes_erds_Mon_l_{freq}.npy')
         avg_erds_Mon_r = np.load(interim_path + f'magnitudes_erds_Mon_r_{freq}.npy')
 
-        C_ERDS.run_spearman(avg_erds_VR_l, subject_list, 'VR left hand', freq, interim_path)
+        list_avg_erds = [avg_erds_Mon_l, avg_erds_Mon_r, avg_erds_VR_l, avg_erds_VR_r]
+        sessions = ['Monitor', 'VR']
+
+        """C_ERDS.run_spearman(avg_erds_VR_l, subject_list, 'VR left hand', freq, interim_path)
         C_ERDS.run_spearman(avg_erds_VR_r, subject_list, 'VR right hand', freq, interim_path)
         C_ERDS.run_spearman(avg_erds_Mon_l, subject_list, 'Monitor left hand', freq, interim_path)
-        C_ERDS.run_spearman(avg_erds_Mon_r, subject_list, 'Monitor right hand', freq, interim_path)
+        C_ERDS.run_spearman(avg_erds_Mon_r, subject_list, 'Monitor right hand', freq, interim_path)"""
 
+        C_ERDS.run_spearman_subplot(list_avg_erds, subject_list, sessions, task, freq, path=interim_path)
 
     #winsound.Beep(750, 1000)
 
