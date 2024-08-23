@@ -1,7 +1,7 @@
 import os
-from sig_reading import Input_Data
+from TrialAndError.sig_reading import Input_Data
 import mne
-import xdf_to_mat
+from TrialAndError import xdf_to_mat
 import glob
 import json
 import SUB_erds_plotting

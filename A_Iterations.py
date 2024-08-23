@@ -19,14 +19,14 @@ from matplotlib.colors import TwoSlopeNorm
 from mne.stats import permutation_cluster_1samp_test as pcluster_test
 import winsound
 from B_preprocessing import Measurement_Data
-import C_ERDS
+import C_ERDS, D_statistics
 
 ######## WHAT TO DO ########
 preproc = False  # create raw, preproc, and epochs (raw, alpha, beta) for all subjects
-erds_per_subj = True  # iterate to combine epochs plot ERDS maps per subject
+erds_per_subj = False  # iterate to combine epochs plot ERDS maps per subject
 topo_per_condition = False  # combine epochs of all subjects to evoked for conditions - plot topo map
 calc_avg_erds_values = False  # iterate to combine epochs per condition and calculate avg ERDS
-save_stat_erds = False  # sort and save data for statistical analysis from ERDS values
+save_stat_erds = True  # sort and save data for statistical analysis from ERDS values
 plt_inter_intra = False  # plot inter- and intra-individual ERDS values
 calc_spearman = False  # calculate and plot spearman correlation matrix
 ############################
@@ -94,10 +94,10 @@ if __name__ == "__main__":
     conditions = {'Control': mon_me, 'Monitor': mon_mi, 'VR': vr_mi}
     roi = ["F3", "F4", "C3", "C4", "P3", "P4"]
     task = ['left', 'right']
-    freq = 'alpha'
-    freq_band=[8, 13]
-    #freq = 'beta'
-    #freq_band = [16, 24]
+    #freq = 'alpha'
+    #freq_band=[8, 13]
+    freq = 'beta'
+    freq_band = [16, 24]
 
 
     # %% create raw, preproc, and epochs (raw, alpha, beta) for all subjects
@@ -303,35 +303,38 @@ if __name__ == "__main__":
         avg_erds_MI_r = np.load(interim_path + f'magnitudes_erds_MI_r_{freq}.npy')
 
         cond = ['Monitor', 'VR'] # results for ANOVA 2x2x6 (2D/2D, MI L/MI R, 6 ROIs)
-        header = []
+        header_VTR = []
         for ses in cond:
             for tsk in task:
                 for ch in roi:
                     descr = ses + ' MI ' + tsk + ' ' + ch
-                    header.append(descr)
+                    header_VTR.append(descr)
 
-        result_erds = np.concatenate((avg_erds_Mon_l, avg_erds_Mon_r, avg_erds_VR_l, avg_erds_VR_r), axis=1)
-        results_file = interim_path + 'ERDS_results_' + freq + '_' + timestamp + '.txt'
-        header_str = ','.join(header)
+        result_erds_VTR = np.concatenate((avg_erds_Mon_l, avg_erds_Mon_r, avg_erds_VR_l, avg_erds_VR_r), axis=1)*100
+        results_file = interim_path + 'ERDS_results_' + freq + '.txt'
+        header_str = ','.join(header_VTR)
         with open(results_file, 'w') as file:
             file.write(header_str + "\n")
         with open(results_file, 'a') as file:
-            np.savetxt(file, result_erds, delimiter=',')
+            np.savetxt(file, result_erds_VTR, delimiter=',')
 
         cond = ['ME', 'MI']  # results for t-test for paired samples (MI vs. ME, l vs. r) without ROIs
-        header = []
+        header_MI_ME = []
         for ses in cond:
             for tsk in task:
                 descr = ses + ' ' + tsk
-                header.append(descr)
+                header_MI_ME.append(descr)
 
-        result_erds = np.concatenate((avg_erds_ME_l, avg_erds_ME_r, avg_erds_MI_l, avg_erds_MI_r), axis=1)
-        results_file = interim_path + 'ERDS_results_MI_ME_' + freq + '_' + timestamp + '.txt'
-        header_str = ','.join(header)
+        result_erds_MI_ME = np.concatenate((avg_erds_ME_l, avg_erds_ME_r, avg_erds_MI_l, avg_erds_MI_r), axis=1)*100
+        results_file = interim_path + 'ERDS_results_MI_ME_' + freq + '.txt'
+        header_str = ','.join(header_MI_ME)
         with open(results_file, 'w') as file:
             file.write(header_str + "\n")
         with open(results_file, 'a') as file:
-            np.savetxt(file, result_erds, delimiter=',')
+            np.savetxt(file, result_erds_MI_ME, delimiter=',')
+
+        #D_statistics.plot_box_MI_ME(result_erds_MI_ME, header_MI_ME, path=interim_path)
+        D_statistics.plot_EMM(result_erds_VTR, header_VTR, path=interim_path)
 
     # %% plot inter- and intra-individual ERDS values
     # prerequisite: file per condition (VR, Monitor) and frequency (alpha, beta) for erds per subject and ROI

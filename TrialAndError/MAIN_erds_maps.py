@@ -11,7 +11,7 @@ import matplotlib
 import pyxdf
 matplotlib.use('Qt5Agg')
 from datetime import datetime
-from WORKS import SUB_trial_management
+from Validation import SUB_trial_management
 from matplotlib.colors import TwoSlopeNorm
 from mne.stats import permutation_cluster_1samp_test as pcluster_test
 import pandas as pd
@@ -160,7 +160,7 @@ if __name__ == "__main__":
     result_path = cwd + '/Results/'
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
 
-    sub_path = "C:/2D3D_Analysis/Data/S14-ses2/"
+    sub_path = "/Data/S14-ses2/"
     config_file_path = sub_path + "CONFIG_S14_run3_MI_3D.json"
     xdf_file_path = sub_path + "S14_run3_MI_3D.xdf"
     #preproc_file_path = sub_path + "preproc_raw/run3_preproc-raw.fif"

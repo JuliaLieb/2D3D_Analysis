@@ -6,8 +6,7 @@ import pyxdf
 
 matplotlib.use('Qt5Agg')
 
-import SUB_erds_management, SUB_trial_management, SUB_filtering
-
+from Validation import SUB_filtering, SUB_erds_management, SUB_trial_management
 
 
 def compute_offline_erds_per_run(subject_data_path, config_file_path, freq_band='mu', preproc=False):

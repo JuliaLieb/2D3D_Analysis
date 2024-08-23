@@ -3,14 +3,12 @@ import numpy as np
 from signal_reading import Input_Data
 import mne
 from colorama import init
-import xdf_to_mat
 import glob
 import json
 from TrialAndError.calc_acc import calculate_accuracy
 import sys
 from datetime import datetime
-from TrialAndError import plt_compare
-import ERDS_calculation
+from TrialAndError import plt_compare, xdf_to_mat, ERDS_calculation
 
 
 def find_config_files(path, subject_id):

@@ -5,9 +5,6 @@ import numpy as np
 import matplotlib
 matplotlib.use('Qt5Agg')
 from datetime import datetime
-import winsound
-from signal_preprocessing import Measurement_Data
-import signal_preprocessing
 import mne
 from matplotlib.colors import TwoSlopeNorm
 

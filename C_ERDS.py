@@ -40,7 +40,7 @@ def calc_clustering(tfr_ev, ch, kwargs):
 
 def plot_erds_maps(epochs, picks, t_min, t_max, path, session, subject, show_erds=False, cluster_mode=False, tfr_mode=False):
     freqs = np.arange(1, 30)
-    vmin, vmax = -1, 1.5  # set min and max ERDS values in plot
+    vmin, vmax = -100, 150  # set min and max ERDS values in plot
     # baseline = [tmin, -0.5]  # baseline interval (in s)
     baseline = [1.5, 3]  # baseline interval (in s)
     cnorm = TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax)  # min, center, and max ERDS
@@ -56,7 +56,7 @@ def plot_erds_maps(epochs, picks, t_min, t_max, path, session, subject, show_erd
 
     for event in epochs.event_id:
         # select desired epochs for visualization
-        tfr_ev = tfr[event]
+        tfr_ev = tfr[event]*100
         num_channels = len(picks)
         num_cols = 2
         num_rows = int(np.ceil(num_channels/num_cols))
@@ -94,11 +94,10 @@ def plot_erds_maps(epochs, picks, t_min, t_max, path, session, subject, show_erd
 
         cbar = fig.colorbar(axes[0].images[-1], ax=axes, orientation='horizontal', fraction=0.025, pad=0.08,)
         cbar.set_label("ERD/S (%)")
-        fig.suptitle(f"{session} - {event}")
+        fig.suptitle(f"{session} - {event}", fontsize=20)
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-        plt.savefig('{}/erds_map_ses{}_{}_hand_{}_{}.svg'.format(path, session, event, subject, timestamp),
-                    format='svg')
+        #timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        plt.savefig('{}/erds_map_ses{}_{}_hand_{}_.svg'.format(path, session, event, subject), format='svg')
         plt.close(fig)
     if show_erds == True:
         plt.show()
@@ -273,7 +272,7 @@ def plot_erds_topo(evoked_l, evoked_r, freq, freq_band, baseline, timespan, path
                               cmap="RdBu", vlim=(vmin, vmax), cnorm=cnorm, contours=10, size=4, colorbar=True,
                               units='ERD/S in %', cbar_fmt='%d')
     axes[1].set_title("right", fontsize=10)
-    plt.suptitle(f'{session} session ({freq})')
+    #plt.suptitle(f'{session} session ({freq})')
 
     # Save the figure
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
@@ -363,7 +362,7 @@ def run_spearman_subplot(data_list, subjects, sessions, cls, freq, path=None):
         else:
             ax.set_ylabel('Subjects')
 
-    plt.suptitle(f'Distance matrices ({freq})', fontsize=16)
+    plt.suptitle(f'Distance matrices ({freq})', fontsize=20)
     plt.tight_layout(rect=[0, 0, 0.9, 0.95])  # Adjust for the suptitle and the colorbar
 
     # Create a colorbar for the entire figure
