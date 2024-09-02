@@ -8,14 +8,9 @@ import pyxdf
 import matplotlib.pyplot as plt
 import mne
 import os
-import scipy
 import matplotlib
 matplotlib.use('Qt5Agg')
-from scipy.signal import iirfilter, sosfiltfilt, iirdesign, sosfilt_zi, sosfilt, butter, lfilter
-from scipy import signal
 from datetime import datetime
-import pandas as pd
-import seaborn as sns
 from matplotlib.colors import TwoSlopeNorm
 from mne.stats import permutation_cluster_1samp_test as pcluster_test
 

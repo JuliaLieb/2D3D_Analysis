@@ -1,28 +1,17 @@
 # ----------------------------------------------------------------------------------------------------------------------
 # ERDS processing
 # ----------------------------------------------------------------------------------------------------------------------
-import json
 import numpy as np
-import pyxdf
 import matplotlib.pyplot as plt
-import mne
-import os
-import scipy
 import matplotlib
 matplotlib.use('Qt5Agg')
-from scipy.signal import iirfilter, sosfiltfilt, iirdesign, sosfilt_zi, sosfilt, butter, lfilter
-from scipy import signal
 from datetime import datetime
 import pandas as pd
 import seaborn as sns
 from matplotlib.colors import TwoSlopeNorm
 from mne.stats import permutation_cluster_1samp_test as pcluster_test
-from mne.time_frequency import tfr_multitaper
-import winsound
 from scipy.stats import spearmanr
 from sklearn.preprocessing import MinMaxScaler
-from matplotlib.colors import LinearSegmentedColormap
-from matplotlib.ticker import FormatStrFormatter
 
 
 def calc_clustering(tfr_ev, ch, kwargs):
@@ -94,10 +83,10 @@ def plot_erds_maps(epochs, picks, t_min, t_max, path, session, subject, show_erd
 
         cbar = fig.colorbar(axes[0].images[-1], ax=axes, orientation='horizontal', fraction=0.025, pad=0.08,)
         cbar.set_label("ERD/S (%)")
-        fig.suptitle(f"{session} - {event}", fontsize=20)
+        fig.suptitle(f"{session} {event}", fontsize=20)
 
         #timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-        plt.savefig('{}/erds_map_ses{}_{}_hand_{}_.svg'.format(path, session, event, subject), format='svg')
+        plt.savefig('{}/erds_map_ses{}_{}_hand_{}.png'.format(path, session, event, subject), format='png')
         plt.close(fig)
     if show_erds == True:
         plt.show()
@@ -203,7 +192,7 @@ def calc_avg_erds_per_subj(epochs, picks, start_time, end_time, freq, avg_rois=F
     else:
         return final_avg_l, final_avg_r
 
-def plot_inter_intra_erds_subplot(avg_erds_list, roi, sessions, cls, freqs, path):
+"""def plot_inter_intra_erds_subplot(avg_erds_list, roi, sessions, cls, freqs, path):
     vmin, vmax = -100, 150  # set min and max ERDS values in plot
     cnorm = TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax)
 
@@ -238,10 +227,72 @@ def plot_inter_intra_erds_subplot(avg_erds_list, roi, sessions, cls, freqs, path
     plt.tight_layout()
     cbar = fig.colorbar(axs[0].images[0], ax=axs, location='right', shrink=0.6, label='ERD/S (%)')
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    plt.savefig(f'{path}/erds_magnitudes_all_sessions_{timestamp}.svg',
+    #timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+    plt.savefig(f'{path}/erds_magnitudes_all_sessions.svg',
+                format='svg', facecolor=fig.get_facecolor())
+    plt.close()"""
+
+
+def plot_inter_intra_erds_subplot(avg_erds_list, roi, sessions, cls, freqs, path):
+    vmin, vmax = -100, 150  # set min and max ERDS values in plot
+    cnorm = TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax)
+
+    fig, axs = plt.subplots(2, 2, figsize=(20, 12))
+    axs = axs.flatten()
+
+    # Iterate through each combination of session and cls
+    for i, (session, cl) in enumerate(zip(sessions, cls)):
+        ax = axs[i]
+
+        avg_erds = np.concatenate([avg_erds_list[i][0], avg_erds_list[i][1]], axis=1) * 100
+        im = ax.imshow(avg_erds, cmap="RdYlBu", aspect='auto', norm=cnorm)
+        ax.set_title(f'{session} {cl}')
+
+        # Determine the number of ROIs and frequencies
+        num_rois = len(roi)
+        num_freqs = avg_erds.shape[1]  # Number of frequency bands
+
+        # Set x-ticks positions and labels
+        tick_width = num_freqs / (num_rois * 2)
+        xticks = (np.arange(num_rois * 2) * tick_width) + (tick_width / 2) - (tick_width / 2)
+        xlabels = roi * 2  # Repeat ROIs for the two concatenated arrays
+        ax.set_xticks(xticks)
+        ax.set_xticklabels(xlabels)
+
+        # Set y-ticks
+        num_subjects = avg_erds.shape[0]
+        ax.set_yticks(np.arange(num_subjects))
+        ax.set_yticklabels([f'S{i + 1}' for i in range(num_subjects)])
+
+        # Add vertical line to separate frequency bands
+        separation_index = num_rois - 0.5
+        ax.axvline(x=separation_index, color='black', linewidth=1.5)
+
+        # Add frequency labels below the x-axis
+        # Center the frequency labels in the middle of each ROI group
+        center_left = (num_rois / 2 - 0.5)  # Center of the first set of ROIs
+        center_right = (num_rois + num_rois / 2 - 0.5)  # Center of the second set of ROIs
+
+        # Add text annotations for frequencies
+        ax.text(center_left, -0.1, freqs[0], ha='center', va='top', fontsize=12, color='black', transform=ax.get_xaxis_transform())
+        ax.text(center_right, -0.1, freqs[1], ha='center', va='top', fontsize=12, color='black', transform=ax.get_xaxis_transform())
+
+        # Label adjustments based on subplot position
+        ax.set_xlabel('ROIs')
+
+        if i % 2 == 1:
+            ax.set_ylabel('')
+        else:
+            ax.set_ylabel('Subjects')
+
+    plt.tight_layout()
+    cbar = fig.colorbar(im, ax=axs, location='right', shrink=0.6, label='ERD/S (%)')
+
+    plt.savefig(f'{path}/erds_magnitudes_all_sessions.svg',
                 format='svg', facecolor=fig.get_facecolor())
     plt.close()
+
+
 
 def plot_erds_topo(evoked_l, evoked_r, freq, freq_band, baseline, timespan, path, session):
     freqs = np.linspace(freq_band[0], freq_band[1], 10)  # Frequencies from start to end

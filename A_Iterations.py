@@ -1,34 +1,25 @@
 # ----------------------------------------------------------------------------------------------------------------------
 # Iterate over subjcects, sessions and runs
 # ----------------------------------------------------------------------------------------------------------------------
-import json
+
 import numpy as np
-import pyxdf
-import matplotlib.pyplot as plt
 import mne
 import os
-import scipy
 import matplotlib
 matplotlib.use('Qt5Agg')
-from scipy.signal import iirfilter, sosfiltfilt, iirdesign, sosfilt_zi, sosfilt, butter, lfilter
-from scipy import signal
 from datetime import datetime
-import pandas as pd
-import seaborn as sns
-from matplotlib.colors import TwoSlopeNorm
-from mne.stats import permutation_cluster_1samp_test as pcluster_test
-import winsound
 from B_preprocessing import Measurement_Data
 import C_ERDS, D_statistics
 
 ######## WHAT TO DO ########
 preproc = False  # create raw, preproc, and epochs (raw, alpha, beta) for all subjects
-erds_per_subj = False  # iterate to combine epochs plot ERDS maps per subject
+erds_per_subj = True  # iterate to combine epochs plot ERDS maps per subject
 topo_per_condition = False  # combine epochs of all subjects to evoked for conditions - plot topo map
 calc_avg_erds_values = False  # iterate to combine epochs per condition and calculate avg ERDS
-save_stat_erds = True  # sort and save data for statistical analysis from ERDS values
+save_stat_erds = False  # sort and save data for statistical analysis from ERDS values
 plt_inter_intra = False  # plot inter- and intra-individual ERDS values
 calc_spearman = False  # calculate and plot spearman correlation matrix
+plot_subject_survey = False  # plot results of participant survey
 ############################
 
 
@@ -94,10 +85,10 @@ if __name__ == "__main__":
     conditions = {'Control': mon_me, 'Monitor': mon_mi, 'VR': vr_mi}
     roi = ["F3", "F4", "C3", "C4", "P3", "P4"]
     task = ['left', 'right']
-    #freq = 'alpha'
-    #freq_band=[8, 13]
-    freq = 'beta'
-    freq_band = [16, 24]
+    freq = 'alpha'
+    freq_band=[8, 13]
+    #freq = 'beta'
+    #freq_band = [16, 24]
 
 
     # %% create raw, preproc, and epochs (raw, alpha, beta) for all subjects
@@ -128,6 +119,7 @@ if __name__ == "__main__":
     # prerequisite: epoch files in interim_subj_path
     # results: ERDS maps at interim_subj_path+plots/
     if erds_per_subj:
+        epochs_counter = []
         for subj_ix, subj in enumerate(subject_list):
             print(f"\n \n --------------- Subject {subj} ---------------")
             interim_subj_path = interim_path + subj + '/'
@@ -150,14 +142,18 @@ if __name__ == "__main__":
             combined_epochs_Con = mne.concatenate_epochs(epochs_Con)
             print(f'Number of epochs: Control - {len(combined_epochs_Con)}, Monitor - {len(combined_epochs_Mon)}, '
                   f'VR - {len(combined_epochs_VR)}')
+            epochs_str = [subj_ix+1, len(combined_epochs_Con), len(combined_epochs_Mon), len(combined_epochs_VR)]
+            epochs_counter.append(epochs_str)
             #'''
             C_ERDS.plot_erds_maps(combined_epochs_VR, picks=roi, t_min=0, t_max=11.25, path=interim_subj_path+'plots/',
-                                  session='VR', subject=subj, cluster_mode=True)
+                                  session='3D', subject=subj, cluster_mode=True)
             C_ERDS.plot_erds_maps(combined_epochs_Mon, picks=roi, t_min=0, t_max=11.25, path=interim_subj_path+'plots/',
-                                  session='Monitor', subject=subj, cluster_mode=True)
+                                  session='2D', subject=subj, cluster_mode=True)
             C_ERDS.plot_erds_maps(combined_epochs_Con, picks=roi, t_min=0, t_max=11.25, path=interim_subj_path+'plots/',
                                   session='Control', subject=subj, cluster_mode=True)
             #'''
+        epochs_counter = np.array(epochs_counter)
+        np.savetxt(interim_path + 'epochs_counter.txt', epochs_counter, delimiter=',', fmt='%d')
 
     # %% combine epochs to evoked for conditions - plot topo map
     # prerequisite: epoch files in interim_subj_path
@@ -302,7 +298,7 @@ if __name__ == "__main__":
         avg_erds_MI_l = np.load(interim_path + f'magnitudes_erds_MI_l_{freq}.npy')
         avg_erds_MI_r = np.load(interim_path + f'magnitudes_erds_MI_r_{freq}.npy')
 
-        cond = ['Monitor', 'VR'] # results for ANOVA 2x2x6 (2D/2D, MI L/MI R, 6 ROIs)
+        cond = ['2D', '3D'] # results for ANOVA 2x2x6 (2D/2D, MI L/MI R, 6 ROIs)
         header_VTR = []
         for ses in cond:
             for tsk in task:
@@ -333,8 +329,8 @@ if __name__ == "__main__":
         with open(results_file, 'a') as file:
             np.savetxt(file, result_erds_MI_ME, delimiter=',')
 
-        #D_statistics.plot_box_MI_ME(result_erds_MI_ME, header_MI_ME, path=interim_path)
-        D_statistics.plot_EMM(result_erds_VTR, header_VTR, path=interim_path)
+        D_statistics.plot_box_MI_ME(result_erds_MI_ME, header_MI_ME, freq, path=interim_path)
+        D_statistics.plot_EMM(result_erds_VTR, header_VTR, freq, path=interim_path)
 
     # %% plot inter- and intra-individual ERDS values
     # prerequisite: file per condition (VR, Monitor) and frequency (alpha, beta) for erds per subject and ROI
@@ -354,7 +350,7 @@ if __name__ == "__main__":
 
         list_avg_erds = [[avg_erds_Mon_l_a, avg_erds_Mon_l_b], [avg_erds_Mon_r_a, avg_erds_Mon_r_b],
                          [avg_erds_VR_l_a, avg_erds_VR_l_b], [avg_erds_VR_r_a, avg_erds_VR_r_b]]
-        sessions = ['Monitor', 'Monitor', 'VR', 'VR']
+        sessions = ['2D', '2D', '3D', '3D']
         cls = ['left', 'right', 'left', 'right']
         frequencies = ['alpha', 'beta']
         C_ERDS.plot_inter_intra_erds_subplot(list_avg_erds, roi, sessions, cls, frequencies, path=interim_path)
@@ -371,7 +367,7 @@ if __name__ == "__main__":
         avg_erds_Mon_r = np.load(interim_path + f'magnitudes_erds_Mon_r_{freq}.npy')
 
         list_avg_erds = [avg_erds_Mon_l, avg_erds_Mon_r, avg_erds_VR_l, avg_erds_VR_r]
-        sessions = ['Monitor', 'VR']
+        sessions = ['2D', '3D']
 
         """C_ERDS.run_spearman(avg_erds_VR_l, subject_list, 'VR left hand', freq, interim_path)
         C_ERDS.run_spearman(avg_erds_VR_r, subject_list, 'VR right hand', freq, interim_path)
@@ -380,5 +376,13 @@ if __name__ == "__main__":
 
         C_ERDS.run_spearman_subplot(list_avg_erds, subject_list, sessions, task, freq, path=interim_path)
 
+    # %% plot results of
+    # prerequisite: file per condition (VR, Monitor) for erds per subject and ROI
+    # results: plot of distance matrix (1-rho, ranked, scaled to 0-1)
+    # plot results of participant survey
+    if plot_subject_survey:
+        monitor = [7, 5, 8]
+        vr = [10, 12, 9]
+        D_statistics.plot_participant_survey(monitor, vr, path=interim_path)
     #winsound.Beep(750, 1000)
 

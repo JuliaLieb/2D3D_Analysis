@@ -1,31 +1,29 @@
 import matplotlib.pyplot as plt
-import numpy as np
 import matplotlib
 matplotlib.use('Qt5Agg')
 import seaborn as sns
 import pandas as pd
-import statsmodels.api as sm
-import statsmodels.formula.api as smf
-import pingouin as pg
+import numpy as np
 
-def plot_box_MI_ME(data, header, path=None):
+
+def plot_box_MI_ME(data, columns, freq, path=None):
     plt.figure(figsize=(8, 6))  # Set the figure size
     plt.boxplot(data)
 
     # Customize the plot
     #plt.title('Box and Whisker Plot')
     plt.xlabel('Task')
-    plt.ylabel('ERD/S')
-    plt.xticks([1, 2, 3, 4], header)
+    plt.ylabel('ERD/S (%)')
+    plt.xticks([1, 2, 3, 4], columns)
 
     if path:
-        plt.savefig('{}/box_whisker_ME_MI.svg'.format(path), format='svg')
+        plt.savefig('{}/box_whisker_ME_MI_{}.svg'.format(path, freq), format='svg')
         plt.close()
     else:
         plt.show()
 
 
-def plot_EMM(data_array, columns, path=None):
+def plot_EMM(data_array, columns, freq, path=None):
 
     # Convert ndarray to DataFrame with correct mapping
     data_df = pd.DataFrame(data_array, columns=columns)
@@ -35,7 +33,7 @@ def plot_EMM(data_array, columns, path=None):
                       var_name='Condition', value_name='Value')
 
     # Extract 'Setting', 'Task', and 'ROI' from 'Condition' column
-    df_long['Setting'] = df_long['Condition'].apply(lambda x: 'Monitor' if 'Monitor' in x else 'VR')
+    df_long['Setting'] = df_long['Condition'].apply(lambda x: '2D' if '2D' in x else '3D')
     df_long['Task'] = df_long['Condition'].apply(lambda x: 'MI left' if 'MI left' in x else 'MI right')
     df_long['ROI'] = df_long['Condition'].apply(lambda x: x.split()[-1])
     df_long.rename(columns={'index': 'Sample'}, inplace=True)
@@ -101,7 +99,34 @@ def plot_EMM(data_array, columns, path=None):
     plt.tight_layout(rect=[0, 0, 0.85, 1])  # Adjust the plot area to make space for the legend
 
     if path:
-        plt.savefig('{}/EEM_plot.svg'.format(path), format='svg')
+        plt.savefig('{}/EEM_plot_{}.svg'.format(path, freq), format='svg')
+        plt.close()
+    else:
+        plt.show()
+
+def plot_participant_survey(monitor, vr, path=None):
+    categories = ['Preferred training method', 'Better according to subjective perception',
+                  'Better according to avg. accuracy']
+
+    bar_width = 0.35
+    y_pos = np.arange(len(categories))
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.barh(y_pos, monitor, height=bar_width, label='2D', color='#f47942')
+    ax.barh(y_pos + bar_width, vr, height=bar_width, label='3D', color='#00587a')
+
+    # Labels and Title
+    ax.set_yticks(y_pos + bar_width / 2)
+    ax.set_yticklabels(categories, fontsize=14)
+    ax.legend()
+    ax.set_xlim(0, 17)
+    ax.set_xticks(np.arange(1, 18, 1))  # Set x-ticks to show all numbers from 1 to 17
+    ax.set_xlabel('Number of subjects', fontsize=14)
+    ax.set_title('Participant Survey', fontsize=20)
+
+    plt.tight_layout()
+
+    if path:
+        plt.savefig('{}/participant_survey.svg'.format(path), format='svg')
         plt.close()
     else:
         plt.show()
